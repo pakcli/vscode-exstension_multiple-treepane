@@ -351,6 +351,9 @@ body.is-resizing-v {
   z-index: 10;
   flex-shrink: 0;
   transition: background-color 0.15s ease;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .panes-container.layout-horizontal .pane-resizer {

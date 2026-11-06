@@ -176,6 +176,21 @@ Each tree pane features a compact 2-row subheader by default:
   * Context menu options **"New File..."** and **"New Folder..."** on both tree nodes and pane canvas backgrounds.
   * Prompts for filename/folder name via `showInputBox`, validates against illegal path traversal characters, and automatically opens newly created files in editor.
 
+### 3.11 Pointer Capture Gutter Resizing & Anti-Stuck Cursor Failsafe
+
+* **Hardware Pointer Capture (`setPointerCapture`)**:
+  * Splitter gutter resizing (`setupResizer`) migrates from legacy `mousedown` to W3C `pointerdown` with `resizerEl.setPointerCapture(e.pointerId)`.
+  * Pointer coordinates remain bound to the gutter even when dragging rapidly across pane boundaries or into other VS Code editor panes.
+  * Releases cleanly on `pointerup`, `pointercancel`, or `lostpointercapture`.
+* **Universal Interaction Failsafe Engine (`cleanupInteractionStates`)**:
+  * Unconditionally purges `is-resizing`, `is-resizing-v`, and `is-tree-dragging` classes from `document.body`.
+  * Removes `.active` from all resizers and `.dragging` from all tree elements.
+* **Triple-Tier Escape Hatches & Watchdog**:
+  * **Window Blur**: Recovers instantly when user clicks outside the webview iframe.
+  * **Document Mouse Leave**: Automatically cancels resizing if pointer exits webview boundary.
+  * **Escape Key**: Pressing `Escape` resets all cursor locks and closes context menus.
+  * **3.5s Watchdog**: Emergency timer auto-restores default cursor if no movement occurs during resize.
+
 ---
 
 ## 4. Development & Packaging Workflow (out/dist vs out/vsix)
@@ -220,28 +235,28 @@ npm run watch
 npm run package
 ```
 *Output artifacts:*
-- `./out/vsix/multiple-treepane-v01-01-04.vsix`
-- `./out/vsix/multiple-treepane-v01.01.04.vsix`
+- `./out/vsix/multiple-treepane-v01-01-05.vsix`
+- `./out/vsix/multiple-treepane-v01.01.05.vsix`
 
 ### Automated Lifecycle Version Bumps
 ```bash
-# Patch bump: 1.1.4 -> 1.1.5 (v01-01-05)
+# Patch bump: 1.1.5 -> 1.1.6 (v01-01-06)
 npm run bump:patch
 
-# Minor bump: 1.1.4 -> 1.2.0 (v01-02-00)
+# Minor bump: 1.1.5 -> 1.2.0 (v01-02-00)
 npm run bump:minor
 
-# Major bump: 1.1.4 -> 2.0.0 (v02-00-00)
+# Major bump: 1.1.5 -> 2.0.0 (v02-00-00)
 npm run bump:major
 ```
 
 ### Installation
 ```bash
 # In VS Code:
-code --install-extension ./out/vsix/multiple-treepane-v01-01-04.vsix
+code --install-extension ./out/vsix/multiple-treepane-v01-01-05.vsix
 
 # In Google Antigravity IDE:
-antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-04.vsix
+antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-05.vsix
 ```
 
 ---
@@ -250,6 +265,7 @@ antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-04.vsix
 
 | Symptom / Failure Mode | Root Cause | Prevention & Resolution |
 | :--- | :--- | :--- |
+| **Mouse cursor stuck on col-resize/row-resize or panel becomes unresponsive** | Legacy mousedown resizing lost mouseup event when released outside iframe boundary, leaving body.is-resizing active. | Migrated to W3C Pointer Events API with setPointerCapture, window.onblur and document.onmouseleave escape hatches, Escape key handler, and 3.5s watchdog timer. |
 | **File creations, deletions, or external changes not detected in tree pane** | Extension host previously had zero `vscode.FileSystemWatcher` registrations, leaving webview state blind to disk events until manual refresh. | Integrated `PaneWatcherManager` registering per-root `vscode.workspace.createFileSystemWatcher` with 150ms trailing debounce and non-destructive expansion-preserving DOM patching. |
 | **Horizontal panes collapse vertically or shrink to file count in canvas** | CSS flex container children defaulted to `align-items: flex-start` or inherited leftover vertical inline height styles. | Enforced `align-items: stretch !important`, `height: 100% !important`, and `box-sizing: border-box` on `.panes-container.layout-horizontal` and `.tree-pane` in `media/main.css`. In `media/main.js`, layout switcher strips stale inline heights. |
 | **Cut nodes stay dimmed if paste is aborted** | Missing cancellation hook for pending cut operations in UI. | Added `Escape` key event listener and right-click backdrop dismiss that resets `fileClipboard` state and invokes `clearCutVisuals()`. |

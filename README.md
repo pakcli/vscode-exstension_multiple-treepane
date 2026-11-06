@@ -1,7 +1,7 @@
-# Multiple TreePane Explorer for VS Code v1.1.4 (v01-01-04)
+# Multiple TreePane Explorer for VS Code v1.1.5 (v01-01-05)
 works with: Antigravity IDE
 
-> Concurrent multi-repository file tree explorer with live reactive file system watchers, real-time file creation detection, adaptive vertical/horizontal splitting, drag-and-drop sorting, clipboard file management (cut/copy/paste), direct file/folder creation, instant file content copy, interactive Git SCM focus, and gutter resizing for VS Code and Google Antigravity IDE.
+> Concurrent multi-repository file tree explorer with hardware pointer capture gutter resizing, anti-stuck cursor recovery, live reactive file system watchers, real-time file creation detection, adaptive vertical/horizontal splitting, drag-and-drop sorting, clipboard file management (cut/copy/paste), direct file/folder creation, instant file content copy, interactive Git SCM focus, and gutter resizing for VS Code and Google Antigravity IDE.
 
 [English](#english) | [Bahasa Indonesia](#bahasa-indonesia)
 
@@ -45,7 +45,8 @@ works with: Antigravity IDE
 * Right-Click Cut, Copy & Paste: Complete clipboard operations (`Ctrl+X`, `Ctrl+C`, `Ctrl+V`, `Escape`) across file tree nodes and pane root background with visual cut indicators.
 * Copy Selected Content: Extract full text content to system clipboard via multi-pane context menu (`Alt+C`) and VS Code native explorer context menu (`multipleTreePane.copySelectedContent`).
 * Interactive Git Badge: Clickable `[GIT]` badge in each pane header revealing and focusing the native VS Code Source Control view.
-* Draggable Gutter Resizers: Resize individual pane widths (horizontal) or heights (vertical) with responsive gutter splitters.
+* Draggable Gutter Resizers with Pointer Capture: Resize individual pane widths (horizontal) or heights (vertical) with responsive gutter splitters powered by W3C `setPointerCapture`—eliminating stuck resize cursors when dragging outside the webview.
+* Universal Interaction Failsafe: Built-in escape hatches for `window.onblur`, `document.onmouseleave`, and `Escape` key, plus an automatic 3.5s watchdog timer to prevent frozen or uninteractable panel states.
 * Drag-and-Drop Sorting (`:::`): Reorder tree panes visually using grab handles, or use `[<]`, `[>]`, and `[1st]` buttons.
 * Per-Pane Live Filtering: Search and filter file trees with real-time highlighting and auto-expanded matching branches.
 * Auto-Discovery of Workspaces & Git Repos: Dropdown selector per pane to switch root directories to any detected Git repository or folder.
@@ -85,7 +86,7 @@ works with: Antigravity IDE
 
 #### Output Notice: `out/` structure (`dist/` & `vsix/`)
 * `npm run compile` compiles TypeScript (`src/*.ts`) into JavaScript (`out/dist/*.js`).
-* `npm run package` creates the production installer in `./out/vsix/multiple-treepane-v01-01-04.vsix` (and dot alias `multiple-treepane-v01.01.04.vsix`).
+* `npm run package` creates the production installer in `./out/vsix/multiple-treepane-v01-01-05.vsix` (and dot alias `multiple-treepane-v01.01.05.vsix`).
 
 #### Step 1: Compile TypeScript
 ```bash
@@ -96,7 +97,7 @@ npm run compile
 ```bash
 npm run package
 ```
-*Output:* `./out/vsix/multiple-treepane-v01-01-04.vsix` created.
+*Output:* `./out/vsix/multiple-treepane-v01-01-05.vsix` created.
 
 #### Step 3: Install in VS Code or Antigravity IDE
 
@@ -105,15 +106,15 @@ npm run package
 2. Open the Extensions view (`Ctrl+Shift+X`).
 3. Click the `...` (Views and More Actions) menu at the top-right of the Extensions pane.
 4. Select **Install from VSIX...**
-5. Select `./out/vsix/multiple-treepane-v01-01-04.vsix`.
+5. Select `./out/vsix/multiple-treepane-v01-01-05.vsix`.
 
 **Method B: Command Line (CLI)**
 ```bash
 # For VS Code:
-code --install-extension ./out/vsix/multiple-treepane-v01-01-04.vsix
+code --install-extension ./out/vsix/multiple-treepane-v01-01-05.vsix
 
 # For Antigravity IDE:
-antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-04.vsix
+antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-05.vsix
 ```
 
 **Method C: Instant Debug (No VSIX required)**
@@ -169,7 +170,8 @@ Distributed under the **MIT License**. Created for the open-source developer too
 * Klik-Kanan Cut, Copy & Paste: Operasi clipboard berkas lengkap (`Ctrl+X`, `Ctrl+C`, `Ctrl+V`, `Escape`) pada node direktori dan area kosong panel.
 * Salin Konten Terpilih (Copy Selected Content): Akses ganda dari menu konteks panel webview (`Alt+C`) dan menu klik kanan native VS Code (`multipleTreePane.copySelectedContent`).
 * Badge Git Interaktif: Badge `[GIT]` di header sub-panel yang dapat diklik untuk membuka panel Source Control native.
-* Gutter Resizer Interaktif: Ubah ukuran lebar (horizontal) atau tinggi (vertikal) setiap panel secara presisi.
+* Gutter Resizer dengan Pointer Capture: Ubah ukuran lebar (horizontal) atau tinggi (vertikal) setiap panel dengan teknologi W3C `setPointerCapture`—menghilangkan bug kursor macet saat mouse dilepas di luar webview.
+* Failsafe Interaksi Universal: Sistem pemulihan otomatis via `window.onblur`, `document.onmouseleave`, tombol `Escape`, dan watchdog timer 3.5 detik untuk mencegah panel membeku atau tidak dapat diklik.
 * Drag-and-Drop Sorting (`:::`): Ubah urutan kolom secara visual menggunakan handle drag, atau gunakan tombol navigasi `[<]`, `[>]`, dan `[1st]`.
 * Pencarian Real-Time per Panel: Filter file langsung di setiap panel dengan highlight teks dan pembukaan cabang otomatis.
 * Auto-Discovery Repositori Git: Dropdown pemilih root untuk beralih ke repositori Git mana pun di dalam workspace.
@@ -209,7 +211,7 @@ Distributed under the **MIT License**. Created for the open-source developer too
 
 #### Lokasi Output: Struktur `out/` (`dist/` & `vsix/`)
 * `npm run compile` mengompilasi TypeScript (`src/*.ts`) menjadi JavaScript di direktori `out/dist/*.js`.
-* `npm run package` menghasilkan paket instalasi produksi di `./out/vsix/multiple-treepane-v01-01-04.vsix` (dan alias dot `multiple-treepane-v01.01.04.vsix`).
+* `npm run package` menghasilkan paket instalasi produksi di `./out/vsix/multiple-treepane-v01-01-05.vsix` (dan alias dot `multiple-treepane-v01.01.05.vsix`).
 
 #### Langkah 1: Kompilasi TypeScript
 ```bash
@@ -220,7 +222,7 @@ npm run compile
 ```bash
 npm run package
 ```
-*Hasil:* Berkas `./out/vsix/multiple-treepane-v01-01-04.vsix` akan terbentuk.
+*Hasil:* Berkas `./out/vsix/multiple-treepane-v01-01-05.vsix` akan terbentuk.
 
 #### Langkah 3: Pasang di VS Code atau Antigravity IDE
 
@@ -229,15 +231,15 @@ npm run package
 2. Buka menu Extensions (`Ctrl+Shift+X`).
 3. Klik tombol menu titik tiga `...` di pojok kanan atas panel Extensions.
 4. Pilih **Install from VSIX...**
-5. Pilih berkas `./out/vsix/multiple-treepane-v01-01-04.vsix`.
+5. Pilih berkas `./out/vsix/multiple-treepane-v01-01-05.vsix`.
 
 **Metode B: Melalui Terminal (CLI)**
 ```bash
 # Untuk VS Code:
-code --install-extension ./out/vsix/multiple-treepane-v01-01-04.vsix
+code --install-extension ./out/vsix/multiple-treepane-v01-01-05.vsix
 
 # Untuk Antigravity IDE:
-antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-04.vsix
+antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-05.vsix
 ```
 
 **Metode C: Uji Coba Cepat (F5 Debug tanpa VSIX)**

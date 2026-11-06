@@ -974,67 +974,106 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 6. Splitter Gutter Resizing Engine
+  // 6. Splitter Gutter Resizing Engine (Hardware Pointer Capture & Anti-Stuck)
   // ---------------------------------------------------------------------------
+  let resizeWatchdogTimer = null;
+
+  function armResizeWatchdog() {
+    clearTimeout(resizeWatchdogTimer);
+    resizeWatchdogTimer = setTimeout(() => {
+      if (document.body.classList.contains('is-resizing') || document.body.classList.contains('is-resizing-v')) {
+        cleanupInteractionStates();
+      }
+    }, 3500);
+  }
+
   function setupResizer(resizerEl, leftPane, rightPane) {
-    resizerEl.addEventListener('mousedown', (e) => {
+    resizerEl.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return; // Only primary mouse button
       e.preventDefault();
+
       const isHorizontal = state.layout === 'horizontal';
       document.body.classList.add(isHorizontal ? 'is-resizing' : 'is-resizing-v');
       resizerEl.classList.add('active');
+
+      try {
+        resizerEl.setPointerCapture(e.pointerId);
+      } catch (err) {}
+
+      armResizeWatchdog();
 
       const startCoord = isHorizontal ? e.clientX : e.clientY;
       const leftEl = document.getElementById(`pane_el_${leftPane.id}`);
       const rightEl = document.getElementById(`pane_el_${rightPane.id}`);
 
-      const startLeftSize = isHorizontal ? leftEl.offsetWidth : leftEl.offsetHeight;
-      const startRightSize = isHorizontal ? rightEl.offsetWidth : rightEl.offsetHeight;
+      const startLeftSize = isHorizontal ? (leftEl ? leftEl.offsetWidth : 120) : (leftEl ? leftEl.offsetHeight : 120);
+      const startRightSize = isHorizontal ? (rightEl ? rightEl.offsetWidth : 120) : (rightEl ? rightEl.offsetHeight : 120);
 
-      function onMouseMove(moveEvent) {
+      function onPointerMove(moveEvent) {
+        armResizeWatchdog();
         const currentCoord = isHorizontal ? moveEvent.clientX : moveEvent.clientY;
         const delta = currentCoord - startCoord;
 
-        const newLeftSize = Math.max(120, startLeftSize + delta);
-        const newRightSize = Math.max(120, startRightSize - delta);
+        const newLeftSize = Math.max(100, startLeftSize + delta);
+        const newRightSize = Math.max(100, startRightSize - delta);
 
         leftPane.size = newLeftSize;
         rightPane.size = newRightSize;
 
-        if (isHorizontal) {
-          leftEl.style.height = '';
-          rightEl.style.height = '';
-          leftEl.style.minHeight = '';
-          rightEl.style.minHeight = '';
-          leftEl.style.maxHeight = '';
-          rightEl.style.maxHeight = '';
-          leftEl.style.width = `${newLeftSize}px`;
-          leftEl.style.flexBasis = `${newLeftSize}px`;
-          rightEl.style.width = `${newRightSize}px`;
-          rightEl.style.flexBasis = `${newRightSize}px`;
-        } else {
-          leftEl.style.width = '';
-          rightEl.style.width = '';
-          leftEl.style.minWidth = '';
-          rightEl.style.minWidth = '';
-          leftEl.style.maxWidth = '';
-          rightEl.style.maxWidth = '';
-          leftEl.style.height = `${newLeftSize}px`;
-          leftEl.style.flexBasis = `${newLeftSize}px`;
-          rightEl.style.height = `${newRightSize}px`;
-          rightEl.style.flexBasis = `${newRightSize}px`;
+        if (leftEl && rightEl) {
+          if (isHorizontal) {
+            leftEl.style.height = '';
+            rightEl.style.height = '';
+            leftEl.style.minHeight = '';
+            rightEl.style.minHeight = '';
+            leftEl.style.maxHeight = '';
+            rightEl.style.maxHeight = '';
+            leftEl.style.width = `${newLeftSize}px`;
+            leftEl.style.flexBasis = `${newLeftSize}px`;
+            rightEl.style.width = `${newRightSize}px`;
+            rightEl.style.flexBasis = `${newRightSize}px`;
+          } else {
+            leftEl.style.width = '';
+            rightEl.style.width = '';
+            leftEl.style.minWidth = '';
+            rightEl.style.minWidth = '';
+            leftEl.style.maxWidth = '';
+            rightEl.style.maxWidth = '';
+            leftEl.style.height = `${newLeftSize}px`;
+            leftEl.style.flexBasis = `${newLeftSize}px`;
+            rightEl.style.height = `${newRightSize}px`;
+            rightEl.style.flexBasis = `${newRightSize}px`;
+          }
         }
       }
 
-      function onMouseUp() {
-        document.body.classList.remove('is-resizing', 'is-resizing-v');
-        resizerEl.classList.remove('active');
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
+      function onPointerEnd(endEvent) {
+        clearTimeout(resizeWatchdogTimer);
+        try {
+          if (endEvent && endEvent.pointerId !== undefined && resizerEl.hasPointerCapture(endEvent.pointerId)) {
+            resizerEl.releasePointerCapture(endEvent.pointerId);
+          }
+        } catch (err) {}
+
+        cleanup();
         saveState();
       }
 
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
+      function cleanup() {
+        document.body.classList.remove('is-resizing', 'is-resizing-v');
+        resizerEl.classList.remove('active');
+        resizerEl.removeEventListener('pointermove', onPointerMove);
+        resizerEl.removeEventListener('pointerup', onPointerEnd);
+        resizerEl.removeEventListener('pointercancel', onPointerEnd);
+        resizerEl.removeEventListener('lostpointercapture', cleanup);
+        window.removeEventListener('pointerup', onPointerEnd);
+      }
+
+      resizerEl.addEventListener('pointermove', onPointerMove);
+      resizerEl.addEventListener('pointerup', onPointerEnd);
+      resizerEl.addEventListener('pointercancel', onPointerEnd);
+      resizerEl.addEventListener('lostpointercapture', cleanup);
+      window.addEventListener('pointerup', onPointerEnd, { once: true });
     });
   }
 
@@ -1662,6 +1701,7 @@
     }
 
     if (e.key === 'Escape') {
+      cleanupInteractionStates();
       closeContextMenu();
       if (fileClipboard.operation === 'cut') {
         document.querySelectorAll('.tree-node.is-cut').forEach((el) => el.classList.remove('is-cut'));
@@ -1723,6 +1763,32 @@
   window.addEventListener('scroll', () => {
     closeContextMenu();
   }, true);
+
+  // ---------------------------------------------------------------------------
+  // Universal Interaction Cleanup Engine & Escape Hatches (Prevent Stuck Cursor)
+  // ---------------------------------------------------------------------------
+  function cleanupInteractionStates() {
+    clearTimeout(resizeWatchdogTimer);
+    document.body.classList.remove('is-resizing', 'is-resizing-v', 'is-tree-dragging');
+    document.querySelectorAll('.pane-resizer.active').forEach((el) => el.classList.remove('active'));
+    document.querySelectorAll('.tree-node.dragging, .pane-title.dragging, .tree-pane.dragging').forEach((el) => el.classList.remove('dragging'));
+    clearAllDragIndicators();
+    isNodeDragging = false;
+    currentDragSource = null;
+  }
+
+  // Tier 1: Window Blur (when clicking outside webview iframe, editor tabs, status bar)
+  window.addEventListener('blur', cleanupInteractionStates);
+
+  // Tier 2: Document Mouse Leave (when pointer leaves webview boundary during drag/resize)
+  document.addEventListener('mouseleave', () => {
+    if (document.body.classList.contains('is-resizing') || document.body.classList.contains('is-resizing-v')) {
+      cleanupInteractionStates();
+    }
+  });
+
+  // Global Pointer Up as ultimate safety net
+  window.addEventListener('pointerup', cleanupInteractionStates);
 
   function copyTextToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
