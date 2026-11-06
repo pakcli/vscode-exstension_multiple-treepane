@@ -23,6 +23,7 @@ tags: [vscode, extension, antigravity, multiple-treepane, guide, manual]
    - [3.6 Right-Click Cut, Copy & Paste Engine (Ctrl+X, Ctrl+C, Ctrl+V)](#36-right-click-cut-copy--paste-engine-ctrlx-ctrlc-ctrlv)
    - [3.7 Copy Selected Content (Multi-Panel & Native Explorer)](#37-copy-selected-content-multi-panel--native-explorer)
    - [3.8 Interactive Git Badge & Source Control Focus](#38-interactive-git-badge--source-control-focus)
+   - [3.9 Terminal Drag-and-Drop & Context Actions](#39-terminal-drag-and-drop--context-actions)
 4. [Development & Packaging Workflow (out/dist vs out/vsix)](#4-development--packaging-workflow-outdist-vs-outvsix)
 5. [Troubleshooting & Root Cause Matrix](#5-troubleshooting--root-cause-matrix)
 
@@ -149,6 +150,18 @@ Each tree pane features a compact 2-row subheader by default:
 * Each tree pane subheader dynamically renders a `[GIT]` badge when inside a detected Git repository.
 * Clicking `[GIT]` executes `workbench.view.scm` and directs the native VS Code Git extension to select and focus that repository, providing seamless access to staged changes, commits, and branches.
 
+### 3.9 Terminal Drag-and-Drop & Context Actions
+
+* **Universal Drag-and-Drop to Terminals**:
+  * Dragging any tree node (file or directory) or pane title (`.pane-title`) exports native paths to VS Code Integrated Terminal, Windows Terminal, PowerShell, CMD, Git Bash, WezTerm, etc.
+  * Windows paths automatically normalize to native backslashes (`\`) and wrap in double quotes (`"..."`) when paths contain spaces or shell metacharacters (`&`, `(`, `)`, `^`, `%`, `$`, `#`, `!`, `;`).
+  * Multi-selected items are joined by a space (`"path1" "path2"`) instead of newlines, preventing premature command execution (Enter) in terminal prompts.
+  * Also populates standard RFC-compliant `text/uri-list` and VS Code workbench `resourceurls` (`application/vnd.code.tree.resourceUrls`) for seamless drop into editor tabs and native explorer.
+* **Terminal Context Menu Actions**:
+  * `Open in Integrated Terminal`: Spawns or focuses an integrated terminal with `cwd` set to the selected folder or pane root.
+  * `Send Path to Terminal`: Focuses the active VS Code terminal and types the formatted path string without pressing Enter, ready for CLI command prefixing (`cd `, `cat `, `git add `).
+  * `Copy Path for Terminal`: Copies the terminal-quoted path directly to system clipboard.
+
 ---
 
 ## 4. Development & Packaging Workflow (out/dist vs out/vsix)
@@ -193,28 +206,28 @@ npm run watch
 npm run package
 ```
 *Output artifacts:*
-- `./out/vsix/multiple-treepane-v01-01-02.vsix`
-- `./out/vsix/multiple-treepane-v01.01.02.vsix`
+- `./out/vsix/multiple-treepane-v01-01-03.vsix`
+- `./out/vsix/multiple-treepane-v01.01.03.vsix`
 
 ### Automated Lifecycle Version Bumps
 ```bash
-# Patch bump: 1.1.2 -> 1.1.3 (v01-01-03)
+# Patch bump: 1.1.3 -> 1.1.4 (v01-01-04)
 npm run bump:patch
 
-# Minor bump: 1.1.2 -> 1.2.0 (v01-02-00)
+# Minor bump: 1.1.3 -> 1.2.0 (v01-02-00)
 npm run bump:minor
 
-# Major bump: 1.1.2 -> 2.0.0 (v02-00-00)
+# Major bump: 1.1.3 -> 2.0.0 (v02-00-00)
 npm run bump:major
 ```
 
 ### Installation
 ```bash
 # In VS Code:
-code --install-extension ./out/vsix/multiple-treepane-v01-01-02.vsix
+code --install-extension ./out/vsix/multiple-treepane-v01-01-03.vsix
 
 # In Google Antigravity IDE:
-antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-02.vsix
+antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-03.vsix
 ```
 
 ---

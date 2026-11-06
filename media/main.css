@@ -493,7 +493,12 @@ body.is-resizing-v {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: pointer;
+  cursor: grab;
+  user-select: none;
+}
+
+.pane-row-1 .pane-title:active {
+  cursor: grabbing;
 }
 
 .pane-row-1 .row-right {

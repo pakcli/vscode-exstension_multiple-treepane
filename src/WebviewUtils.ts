@@ -288,6 +288,16 @@ export class WebviewUtils {
         break;
       }
 
+      case 'openInTerminal': {
+        await FileSystemService.openInTerminal(message.folderPath);
+        break;
+      }
+
+      case 'sendToTerminal': {
+        await FileSystemService.sendPathsToTerminal(message.paths, Boolean(message.execute));
+        break;
+      }
+
       case 'revealInOS': {
         const uri = vscode.Uri.file(message.filePath);
         await vscode.commands.executeCommand('revealFileInOS', uri);

@@ -250,6 +250,14 @@ class WebviewUtils {
                 await FileSystemService_1.FileSystemService.openSourceControlForRepo(message.repoPath);
                 break;
             }
+            case 'openInTerminal': {
+                await FileSystemService_1.FileSystemService.openInTerminal(message.folderPath);
+                break;
+            }
+            case 'sendToTerminal': {
+                await FileSystemService_1.FileSystemService.sendPathsToTerminal(message.paths, Boolean(message.execute));
+                break;
+            }
             case 'revealInOS': {
                 const uri = vscode.Uri.file(message.filePath);
                 await vscode.commands.executeCommand('revealFileInOS', uri);

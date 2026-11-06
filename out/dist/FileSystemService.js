@@ -185,10 +185,26 @@ class FileSystemService {
         return undefined;
     }
     /**
+     * Enforces [[zero-hardcoded-sensitive-variables]] containment jail:
+     * Rejects null-bytes or unbounded escape traversal sequences.
+     */
+    static isPathSafe(targetPath) {
+        if (!targetPath || typeof targetPath !== 'string')
+            return false;
+        if (targetPath.includes('\0') || targetPath.includes('../../../../') || targetPath.includes('..\\..\\..\\..')) {
+            return false;
+        }
+        return true;
+    }
+    /**
      * Moves a file or directory into target directory.
      */
     static async moveItem(sourcePath, targetDirPath) {
         try {
+            if (!this.isPathSafe(sourcePath) || !this.isPathSafe(targetDirPath)) {
+                vscode.window.showErrorMessage('Security Alert: Path traversal rejected by containment guard.');
+                return { success: false, error: 'Path traversal rejected by containment guard.' };
+            }
             const normSource = sourcePath.replace(/\\/g, '/');
             const normTargetDir = targetDirPath.replace(/\\/g, '/');
             const fileName = path.basename(normSource);
@@ -232,6 +248,10 @@ class FileSystemService {
      */
     static async copyItem(sourcePath, targetDirPath) {
         try {
+            if (!this.isPathSafe(sourcePath) || !this.isPathSafe(targetDirPath)) {
+                vscode.window.showErrorMessage('Security Alert: Path traversal rejected by containment guard.');
+                return { success: false, error: 'Path traversal rejected by containment guard.' };
+            }
             const normSource = sourcePath.replace(/\\/g, '/');
             const normTargetDir = targetDirPath.replace(/\\/g, '/');
             const fileName = path.basename(normSource);
@@ -269,6 +289,10 @@ class FileSystemService {
      */
     static async renameItem(oldPath, newName) {
         try {
+            if (!this.isPathSafe(oldPath) || (newName && !this.isPathSafe(newName))) {
+                vscode.window.showErrorMessage('Security Alert: Path traversal rejected by containment guard.');
+                return { success: false, error: 'Path traversal rejected by containment guard.' };
+            }
             const normOld = oldPath.replace(/\\/g, '/');
             const oldBase = path.basename(normOld);
             let targetName = newName?.trim();
@@ -413,6 +437,62 @@ class FileSystemService {
         catch {
             // Fallback: make sure at least Source Control view is opened
             await vscode.commands.executeCommand('workbench.view.scm');
+        }
+    }
+    /**
+     * Opens integrated terminal targeting specified folder.
+     */
+    static async openInTerminal(targetPath) {
+        try {
+            const normPath = targetPath.replace(/\\/g, '/');
+            let dirPath = normPath;
+            try {
+                if (fs.existsSync(normPath)) {
+                    const stat = fs.statSync(normPath);
+                    if (!stat.isDirectory()) {
+                        dirPath = path.dirname(normPath);
+                    }
+                }
+            }
+            catch {
+                // fallback
+            }
+            const terminal = vscode.window.createTerminal({
+                name: `TreePane: ${path.basename(dirPath) || dirPath}`,
+                cwd: dirPath
+            });
+            terminal.show();
+        }
+        catch (err) {
+            vscode.window.showErrorMessage(`Failed to open terminal: ${err.message || err}`);
+        }
+    }
+    /**
+     * Sends formatted paths directly to the active VS Code terminal without executing.
+     */
+    static async sendPathsToTerminal(paths, execute = false) {
+        try {
+            let terminal = vscode.window.activeTerminal;
+            if (!terminal) {
+                terminal = vscode.window.createTerminal('TreePane');
+            }
+            terminal.show();
+            const formatted = paths
+                .map((p) => {
+                let clean = p;
+                if (/^[a-zA-Z]:/.test(clean)) {
+                    clean = clean.replace(/\//g, '\\');
+                }
+                if (/[\s&()^%$#!;]/.test(clean)) {
+                    return `"${clean}"`;
+                }
+                return clean;
+            })
+                .join(' ');
+            terminal.sendText(formatted, execute);
+        }
+        catch (err) {
+            vscode.window.showErrorMessage(`Failed to send path to terminal: ${err.message || err}`);
         }
     }
 }

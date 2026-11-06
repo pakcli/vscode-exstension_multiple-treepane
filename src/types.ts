@@ -52,6 +52,8 @@ export type InboundMessage =
   | { command: 'copyToClipboard'; text: string }
   | { command: 'copySelectedContent'; paths: string[] }
   | { command: 'openSourceControl'; repoPath: string }
+  | { command: 'openInTerminal'; folderPath: string }
+  | { command: 'sendToTerminal'; paths: string[]; execute?: boolean }
   | { command: 'revealInOS'; filePath: string }
   | { command: 'loadSubfolder'; paneId: string; folderPath: string };
 

@@ -598,7 +598,7 @@
             <div class="row-left">
               <span class="drag-handle" draggable="true" title="Drag to reorder pane">:::</span>
               <span class="pane-index">#${index + 1}</span>
-              <span class="pane-title" title="${pane.rootPath}">${escapeHtml(pane.name)}</span>
+              <span class="pane-title" draggable="true" title="${pane.rootPath} (Drag into terminal or editor)">${escapeHtml(pane.name)}</span>
               ${pane.rootPath.includes('.git') || state.availableRepos.find((r) => r.path === pane.rootPath && r.isGit) ? `<span class="repo-badge btn-git-badge" data-repo-path="${escapeHtml(pane.rootPath)}" title="Open in Source Control (${escapeHtml(pane.name)})">GIT</span>` : ''}
               ${focusBadgeHtml}
             </div>
@@ -659,7 +659,49 @@
           paneEl.classList.remove('dragging');
           document.querySelectorAll('.tree-pane').forEach((el) => el.classList.remove('drag-over'));
         });
+      }
 
+      // -----------------------------------------------------------------------
+      // Drag-and-Drop Pane Title to Terminal or Editor (Exports rootPath)
+      // -----------------------------------------------------------------------
+      const paneTitleEl = paneEl.querySelector('.pane-title');
+      if (paneTitleEl) {
+        paneTitleEl.addEventListener('dragstart', (e) => {
+          const rootPath = pane.rootPath;
+          const terminalText = formatTerminalPath(rootPath);
+          const uri = toFileUri(rootPath);
+
+          currentDragSource = {
+            sourcePaths: [rootPath],
+            sourcePath: rootPath,
+            sourcePaneId: pane.id,
+            isDirectory: true
+          };
+
+          e.dataTransfer.setData('text/plain', terminalText);
+          e.dataTransfer.setData('text/uri-list', uri);
+          e.dataTransfer.setData('resourceurls', JSON.stringify([uri]));
+          e.dataTransfer.setData('application/vnd.code.tree.resourceUrls', JSON.stringify([uri]));
+          e.dataTransfer.setData('application/vnd.code.tree.treepane', JSON.stringify(currentDragSource));
+          e.dataTransfer.setData('text/x-treepane-path', rootPath);
+          e.dataTransfer.effectAllowed = 'copyMove';
+
+          paneTitleEl.classList.add('dragging');
+          document.body.classList.add('is-tree-dragging');
+        });
+
+        paneTitleEl.addEventListener('dragend', () => {
+          paneTitleEl.classList.remove('dragging');
+          document.body.classList.remove('is-tree-dragging');
+          clearAllDragIndicators();
+          currentDragSource = null;
+          setTimeout(() => {
+            isNodeDragging = false;
+          }, 120);
+        });
+      }
+
+      if (!isFocus) {
         paneEl.addEventListener('dragover', (e) => {
           e.preventDefault();
           // If pane reordering drag:
@@ -1249,8 +1291,9 @@
         }
 
         const activePaths = Array.from(selectedPaths);
-        const advancePaths = activePaths.map((p) => toAdvancedFilePath(p)).join('\n');
-        const uriList = activePaths.map((p) => toFileUri(p)).join('\n');
+        const terminalText = activePaths.map(formatTerminalPath).join(' ');
+        const uriList = activePaths.map((p) => toFileUri(p)).join('\r\n');
+        const uris = activePaths.map((p) => toFileUri(p));
 
         currentDragSource = {
           sourcePaths: activePaths,
@@ -1259,13 +1302,17 @@
           isDirectory: node.isDirectory
         };
 
-        // 1. Text payload with Copy Path Advance for terminal, editor, and external drop
-        e.dataTransfer.setData('text/plain', advancePaths);
+        // 1. Terminal plain-text payload: space-separated and quoted paths for VS Code terminal, Windows Terminal, PowerShell, CMD, Bash
+        e.dataTransfer.setData('text/plain', terminalText);
 
-        // 2. Standard file URI list for file drop receivers
+        // 2. Standard RFC-compliant CRLF-delimited file URI list
         e.dataTransfer.setData('text/uri-list', uriList);
 
-        // 3. TreePane internal drag payload
+        // 3. VS Code Workbench resource URLs (for dropping into editor groups, native explorer, and terminal)
+        e.dataTransfer.setData('resourceurls', JSON.stringify(uris));
+        e.dataTransfer.setData('application/vnd.code.tree.resourceUrls', JSON.stringify(uris));
+
+        // 4. TreePane internal drag payload
         e.dataTransfer.setData('application/vnd.code.tree.treepane', JSON.stringify(currentDragSource));
         e.dataTransfer.setData('text/x-treepane-path', activePaths.join('\n'));
 
@@ -1657,6 +1704,18 @@
     return `(file;file://${norm})`;
   }
 
+  function formatTerminalPath(filePath) {
+    if (!filePath) return '';
+    let p = filePath;
+    if (/^[a-zA-Z]:/.test(p)) {
+      p = p.replace(/\//g, '\\');
+    }
+    if (/[\s&()^%$#!;]/.test(p)) {
+      return `"${p}"`;
+    }
+    return p;
+  }
+
   function computeRelativePath(fullPath, rootPath) {
     const normFull = fullPath.replace(/\\/g, '/');
     const normRoot = (rootPath || '').replace(/\\/g, '/').replace(/\/+$/, '');
@@ -1720,8 +1779,18 @@
         <span class="item-label">Copy Relative Path${countBadge}</span>
         <span class="item-shortcut">Ctrl+K Ctrl+Shift+C</span>
       </div>
+      <div class="context-menu-item" data-action="copyTerminalPath">
+        <span class="item-label">Copy Path for Terminal${countBadge}</span>
+      </div>
       <div class="context-menu-item" data-action="copyPathAdvance">
         <span class="item-label">Copy Path Advance${countBadge}</span>
+      </div>
+      <div class="context-menu-divider"></div>
+      <div class="context-menu-item" data-action="sendToTerminal">
+        <span class="item-label">Send Path to Terminal${countBadge}</span>
+      </div>
+      <div class="context-menu-item" data-action="openInTerminal">
+        <span class="item-label">Open in Integrated Terminal</span>
       </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="rename">
@@ -1765,8 +1834,24 @@
         case 'copyRelativePath':
           copyTextToClipboard(relPaths);
           break;
+        case 'copyTerminalPath':
+          copyTextToClipboard(activePaths.map(formatTerminalPath).join(' '));
+          break;
         case 'copyPathAdvance':
           copyTextToClipboard(advancePaths);
+          break;
+        case 'sendToTerminal':
+          vscode.postMessage({
+            command: 'sendToTerminal',
+            paths: activePaths,
+            execute: false
+          });
+          break;
+        case 'openInTerminal':
+          vscode.postMessage({
+            command: 'openInTerminal',
+            folderPath: node.isDirectory ? fullPath : targetDirPath
+          });
           break;
         case 'rename': {
           const targetNodeEl = document.querySelector(`.tree-node[data-path="${CSS.escape(fullPath)}"]`);
@@ -1838,8 +1923,18 @@
       <div class="context-menu-item" data-action="copyRelativePath">
         <span class="item-label">Copy Relative Path</span>
       </div>
+      <div class="context-menu-item" data-action="copyTerminalPath">
+        <span class="item-label">Copy Path for Terminal</span>
+      </div>
       <div class="context-menu-item" data-action="copyPathAdvance">
         <span class="item-label">Copy Path Advance</span>
+      </div>
+      <div class="context-menu-divider"></div>
+      <div class="context-menu-item" data-action="sendToTerminal">
+        <span class="item-label">Send Path to Terminal</span>
+      </div>
+      <div class="context-menu-item" data-action="openInTerminal">
+        <span class="item-label">Open in Integrated Terminal</span>
       </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="revealInOS">
@@ -1868,8 +1963,24 @@
         case 'copyRelativePath':
           copyTextToClipboard(relPath);
           break;
+        case 'copyTerminalPath':
+          copyTextToClipboard(formatTerminalPath(fullPath));
+          break;
         case 'copyPathAdvance':
           copyTextToClipboard(advancePath);
+          break;
+        case 'sendToTerminal':
+          vscode.postMessage({
+            command: 'sendToTerminal',
+            paths: [fullPath],
+            execute: false
+          });
+          break;
+        case 'openInTerminal':
+          vscode.postMessage({
+            command: 'openInTerminal',
+            folderPath: fullPath
+          });
           break;
         case 'revealInOS':
           vscode.postMessage({ command: 'revealInOS', filePath: fullPath });
