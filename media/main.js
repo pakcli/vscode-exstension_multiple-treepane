@@ -45,6 +45,8 @@
     resizing: null
   };
 
+  let compareSourcePath = null;
+
   const container = document.getElementById('panesContainer');
   const badge = document.getElementById('paneCountBadge');
   const reposDropdownWrapper = document.getElementById('reposDropdownWrapper');
@@ -1341,11 +1343,19 @@
         labelHtml = matcher.highlight(node.name);
       }
 
+      if (node.gitStatus) {
+        nodeEl.dataset.gitStatus = node.gitStatus;
+      }
+      const gitBadgeHtml = node.gitStatus
+        ? `<span class="tree-git-badge status-${node.gitStatus}">${node.gitStatus}</span>`
+        : '';
+
       nodeEl.innerHTML = `
         ${indentHtml}
         ${arrowHtml}
         <span class="tree-icon">${icon}</span>
         <span class="tree-label">${labelHtml}</span>
+        ${gitBadgeHtml}
       `;
 
       // -----------------------------------------------------------------------
@@ -1757,6 +1767,114 @@
         e.preventDefault();
         executeCopyContent(activePaths);
       }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const allVisible = Array.from(document.querySelectorAll('.tree-node')).filter((el) => el.offsetParent !== null);
+      if (allVisible.length === 0) return;
+      const currentSelected = document.querySelector('.tree-node.selected') || document.querySelector('.tree-node.active');
+      let idx = currentSelected ? allVisible.indexOf(currentSelected) : -1;
+      const nextIdx = idx < allVisible.length - 1 ? idx + 1 : 0;
+      const nextEl = allVisible[nextIdx];
+      if (nextEl) {
+        selectedPaths.clear();
+        selectedPaths.add(nextEl.dataset.path);
+        lastAnchorNode = { path: nextEl.dataset.path, paneId: nextEl.dataset.paneId, nodeEl: nextEl };
+        updateSelectionUI();
+        nextEl.scrollIntoView({ block: 'nearest' });
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const allVisible = Array.from(document.querySelectorAll('.tree-node')).filter((el) => el.offsetParent !== null);
+      if (allVisible.length === 0) return;
+      const currentSelected = document.querySelector('.tree-node.selected') || document.querySelector('.tree-node.active');
+      let idx = currentSelected ? allVisible.indexOf(currentSelected) : -1;
+      const prevIdx = idx > 0 ? idx - 1 : allVisible.length - 1;
+      const prevEl = allVisible[prevIdx];
+      if (prevEl) {
+        selectedPaths.clear();
+        selectedPaths.add(prevEl.dataset.path);
+        lastAnchorNode = { path: prevEl.dataset.path, paneId: prevEl.dataset.paneId, nodeEl: prevEl };
+        updateSelectionUI();
+        prevEl.scrollIntoView({ block: 'nearest' });
+      }
+    } else if (e.key === 'ArrowRight') {
+      const activeEl = document.querySelector('.tree-node.selected') || document.querySelector('.tree-node.active');
+      if (activeEl) {
+        e.preventDefault();
+        const isDir = activeEl.dataset.isDir === 'true';
+        if (isDir) {
+          const arrow = activeEl.querySelector('.tree-arrow');
+          const isExpanded = arrow && arrow.classList.contains('expanded');
+          if (!isExpanded) {
+            activeEl.click();
+          } else {
+            const allVisible = Array.from(document.querySelectorAll('.tree-node')).filter((el) => el.offsetParent !== null);
+            const idx = allVisible.indexOf(activeEl);
+            if (idx !== -1 && idx < allVisible.length - 1) {
+              const nextEl = allVisible[idx + 1];
+              selectedPaths.clear();
+              selectedPaths.add(nextEl.dataset.path);
+              lastAnchorNode = { path: nextEl.dataset.path, paneId: nextEl.dataset.paneId, nodeEl: nextEl };
+              updateSelectionUI();
+              nextEl.scrollIntoView({ block: 'nearest' });
+            }
+          }
+        }
+      }
+    } else if (e.key === 'ArrowLeft') {
+      const activeEl = document.querySelector('.tree-node.selected') || document.querySelector('.tree-node.active');
+      if (activeEl) {
+        e.preventDefault();
+        const isDir = activeEl.dataset.isDir === 'true';
+        const arrow = activeEl.querySelector('.tree-arrow');
+        const isExpanded = arrow && arrow.classList.contains('expanded');
+        if (isDir && isExpanded) {
+          activeEl.click();
+        } else {
+          const parentChildren = activeEl.closest('.tree-children');
+          if (parentChildren) {
+            const parentNodeEl = parentChildren.previousElementSibling;
+            if (parentNodeEl && parentNodeEl.classList.contains('tree-node')) {
+              selectedPaths.clear();
+              selectedPaths.add(parentNodeEl.dataset.path);
+              lastAnchorNode = { path: parentNodeEl.dataset.path, paneId: parentNodeEl.dataset.paneId, nodeEl: parentNodeEl };
+              updateSelectionUI();
+              parentNodeEl.scrollIntoView({ block: 'nearest' });
+            }
+          }
+        }
+      }
+    } else if (e.key === 'Enter') {
+      const activeEl = document.querySelector('.tree-node.selected') || document.querySelector('.tree-node.active');
+      if (activeEl) {
+        e.preventDefault();
+        const p = activeEl.dataset.path;
+        const isDir = activeEl.dataset.isDir === 'true';
+        if (e.ctrlKey || e.metaKey) {
+          if (!isDir) {
+            vscode.postMessage({ command: 'openToSide', filePath: p });
+          }
+        } else {
+          if (isDir) {
+            activeEl.click();
+          } else {
+            vscode.postMessage({ command: 'openFile', filePath: p });
+          }
+        }
+      }
+    } else if (e.key === 'Delete') {
+      const activePaths = selectedPaths.size > 0 ? Array.from(selectedPaths) : [];
+      if (activePaths.length > 0) {
+        e.preventDefault();
+        const firstEl = document.querySelector(`.tree-node[data-path="${CSS.escape(activePaths[0])}"]`);
+        const paneId = firstEl ? firstEl.dataset.paneId : state.activePaneId;
+        vscode.postMessage({
+          command: 'deleteItem',
+          filePath: activePaths[0],
+          paneId,
+          useTrash: true
+        });
+      }
     }
   });
 
@@ -1857,6 +1975,8 @@
       ev.stopImmediatePropagation();
     }, true);
 
+    const compareName = compareSourcePath ? compareSourcePath.split('/').pop() || compareSourcePath : '';
+
     menu.innerHTML = `
       <div class="context-menu-item" data-action="newFile">
         <span class="item-label">New File...</span>
@@ -1864,6 +1984,39 @@
       <div class="context-menu-item" data-action="newFolder">
         <span class="item-label">New Folder...</span>
       </div>
+      <div class="context-menu-divider"></div>
+      ${!node.isDirectory && !isMulti ? `
+        <div class="context-menu-item" data-action="openFile">
+          <span class="item-label">Open File</span>
+          <span class="item-shortcut">Enter</span>
+        </div>
+        <div class="context-menu-item" data-action="openToSide">
+          <span class="item-label">Open to the Side</span>
+          <span class="item-shortcut">Ctrl+Enter</span>
+        </div>
+      ` : ''}
+      <div class="context-menu-item" data-action="revealInOS">
+        <span class="item-label">Reveal in File Explorer</span>
+      </div>
+      <div class="context-menu-item" data-action="openInTerminal">
+        <span class="item-label">Open in Integrated Terminal</span>
+      </div>
+      ${node.isDirectory ? `
+        <div class="context-menu-item" data-action="findInFolder">
+          <span class="item-label">Find in Folder...</span>
+        </div>
+      ` : ''}
+      ${!node.isDirectory && !isMulti ? `
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" data-action="selectCompare">
+          <span class="item-label">Select for Compare</span>
+        </div>
+        ${compareSourcePath && compareSourcePath !== fullPath ? `
+          <div class="context-menu-item" data-action="compareSelected">
+            <span class="item-label">Compare with Selected: '${escapeHtml(compareName)}'</span>
+          </div>
+        ` : ''}
+      ` : ''}
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="cut">
         <span class="item-label">Cut${countBadge}</span>
@@ -1873,9 +2026,21 @@
         <span class="item-label">Copy${countBadge}</span>
         <span class="item-shortcut">Ctrl+C</span>
       </div>
+      <div class="context-menu-item" data-action="duplicate">
+        <span class="item-label">Duplicate</span>
+      </div>
       <div class="context-menu-item ${!canPaste ? 'disabled' : ''}" data-action="paste">
         <span class="item-label">Paste${pasteCount}</span>
         <span class="item-shortcut">Ctrl+V</span>
+      </div>
+      <div class="context-menu-divider"></div>
+      <div class="context-menu-item" data-action="rename">
+        <span class="item-label">Rename</span>
+        <span class="item-shortcut">F2</span>
+      </div>
+      <div class="context-menu-item" data-action="delete">
+        <span class="item-label">Delete (Move to Trash)</span>
+        <span class="item-shortcut">Delete</span>
       </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="copyContent">
@@ -1901,21 +2066,8 @@
       <div class="context-menu-item" data-action="sendToTerminal">
         <span class="item-label">Send Path to Terminal${countBadge}</span>
       </div>
-      <div class="context-menu-item" data-action="openInTerminal">
-        <span class="item-label">Open in Integrated Terminal</span>
-      </div>
-      <div class="context-menu-divider"></div>
-      <div class="context-menu-item" data-action="rename">
-        <span class="item-label">Rename</span>
-        <span class="item-shortcut">F2</span>
-      </div>
       <div class="context-menu-item" data-action="moveToRepo">
         <span class="item-label">Move to Repo...${countBadge}</span>
-      </div>
-      <div class="context-menu-divider"></div>
-      ${!node.isDirectory && !isMulti ? `<div class="context-menu-item" data-action="openFile"><span class="item-label">Open File</span></div>` : ''}
-      <div class="context-menu-item" data-action="revealInOS">
-        <span class="item-label">Reveal in File Explorer</span>
       </div>
     `;
 
@@ -1996,6 +2148,42 @@
         case 'openFile':
           vscode.postMessage({ command: 'openFile', filePath: fullPath });
           break;
+        case 'openToSide':
+          vscode.postMessage({ command: 'openToSide', filePath: fullPath });
+          break;
+        case 'selectCompare':
+          compareSourcePath = fullPath;
+          break;
+        case 'compareSelected':
+          if (compareSourcePath) {
+            vscode.postMessage({
+              command: 'compareFiles',
+              sourcePath: compareSourcePath,
+              targetPath: fullPath
+            });
+          }
+          break;
+        case 'findInFolder':
+          vscode.postMessage({
+            command: 'findInFolder',
+            folderPath: node.isDirectory ? fullPath : targetDirPath
+          });
+          break;
+        case 'duplicate':
+          vscode.postMessage({
+            command: 'duplicateItem',
+            sourcePath: fullPath,
+            paneId
+          });
+          break;
+        case 'delete':
+          vscode.postMessage({
+            command: 'deleteItem',
+            filePath: fullPath,
+            paneId,
+            useTrash: true
+          });
+          break;
         case 'revealInOS':
           vscode.postMessage({ command: 'revealInOS', filePath: fullPath });
           break;
@@ -2071,6 +2259,9 @@
       <div class="context-menu-item" data-action="openInTerminal">
         <span class="item-label">Open in Integrated Terminal</span>
       </div>
+      <div class="context-menu-item" data-action="findInFolder">
+        <span class="item-label">Find in Root Folder...</span>
+      </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="revealInOS">
         <span class="item-label">Reveal in File Explorer</span>
@@ -2130,6 +2321,12 @@
         case 'openInTerminal':
           vscode.postMessage({
             command: 'openInTerminal',
+            folderPath: fullPath
+          });
+          break;
+        case 'findInFolder':
+          vscode.postMessage({
+            command: 'findInFolder',
             folderPath: fullPath
           });
           break;

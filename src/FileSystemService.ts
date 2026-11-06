@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { TreeNode, RepoOption } from './types';
+import { GitStatusService } from './GitStatusService';
 
 export class FileSystemService {
   /**
@@ -90,6 +91,13 @@ export class FileSystemService {
     const uri = vscode.Uri.file(normPath);
 
     const isGit = this.checkIsGitRepoSync(normPath);
+    let gitMap: Map<string, 'M' | 'U' | 'A' | 'D' | 'R'> | undefined;
+    if (isGit) {
+      try {
+        gitMap = await GitStatusService.getRepoStatusMap(normPath);
+      } catch {}
+    }
+
     const rootNode: TreeNode = {
       name: folderName,
       path: normPath,
@@ -99,7 +107,7 @@ export class FileSystemService {
       children: []
     };
 
-    rootNode.children = await this.readChildren(uri, 1, maxDepth);
+    rootNode.children = await this.readChildren(uri, 1, maxDepth, gitMap);
     return rootNode;
   }
 
@@ -109,13 +117,31 @@ export class FileSystemService {
   public static async readSubfolderChildren(folderPath: string, depth: number = 3): Promise<TreeNode[]> {
     const normPath = folderPath.replace(/\\/g, '/');
     const uri = vscode.Uri.file(normPath);
-    return this.readChildren(uri, 1, depth);
+
+    let gitMap: Map<string, 'M' | 'U' | 'A' | 'D' | 'R'> | undefined;
+    let curr = normPath;
+    while (curr && curr !== path.dirname(curr)) {
+      if (this.checkIsGitRepoSync(curr)) {
+        try {
+          gitMap = await GitStatusService.getRepoStatusMap(curr);
+        } catch {}
+        break;
+      }
+      curr = path.dirname(curr).replace(/\\/g, '/');
+    }
+
+    return this.readChildren(uri, 1, depth, gitMap);
   }
 
   /**
    * Helper to read children up to maxDepth.
    */
-  private static async readChildren(uri: vscode.Uri, currentDepth: number, maxDepth: number): Promise<TreeNode[]> {
+  private static async readChildren(
+    uri: vscode.Uri,
+    currentDepth: number,
+    maxDepth: number,
+    gitMap?: Map<string, 'M' | 'U' | 'A' | 'D' | 'R'>
+  ): Promise<TreeNode[]> {
     if (currentDepth > maxDepth) {
       return [];
     }
@@ -157,10 +183,14 @@ export class FileSystemService {
           isExpanded: false
         };
 
+        if (gitMap && gitMap.has(childPath.toLowerCase())) {
+          node.gitStatus = gitMap.get(childPath.toLowerCase());
+        }
+
         if (isDir) {
           node.isGitRepo = this.checkIsGitRepoSync(childPath);
           if (currentDepth < maxDepth) {
-            node.children = await this.readChildren(childUri, currentDepth + 1, maxDepth);
+            node.children = await this.readChildren(childUri, currentDepth + 1, maxDepth, gitMap);
           } else {
             node.children = [];
           }
@@ -618,6 +648,95 @@ export class FileSystemService {
       terminal.sendText(formatted, execute);
     } catch (err: any) {
       vscode.window.showErrorMessage(`Failed to send path to terminal: ${err.message || err}`);
+    }
+  }
+
+  /**
+   * Opens file beside active editor column.
+   */
+  public static async openToSide(filePath: string): Promise<void> {
+    try {
+      const uri = vscode.Uri.file(filePath);
+      await vscode.commands.executeCommand('vscode.open', uri, {
+        viewColumn: vscode.ViewColumn.Beside
+      });
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`Failed to open to side: ${err.message || err}`);
+    }
+  }
+
+  /**
+   * Compares two files using VS Code native diff viewer.
+   */
+  public static async compareFiles(sourcePath: string, targetPath: string): Promise<void> {
+    try {
+      const uriA = vscode.Uri.file(sourcePath);
+      const uriB = vscode.Uri.file(targetPath);
+      const nameA = path.basename(sourcePath);
+      const nameB = path.basename(targetPath);
+      await vscode.commands.executeCommand('vscode.diff', uriA, uriB, `${nameA} ↔ ${nameB}`);
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`Comparison failed: ${err.message || err}`);
+    }
+  }
+
+  /**
+   * Scopes global search to a target folder.
+   */
+  public static async findInFolder(folderPath: string): Promise<void> {
+    try {
+      const norm = folderPath.replace(/\\/g, '/');
+      await vscode.commands.executeCommand('workbench.action.findInFiles', {
+        query: '',
+        filesToInclude: `${norm}/**`
+      });
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`Find in folder failed: ${err.message || err}`);
+    }
+  }
+
+  /**
+   * Deletes a file or directory safely to trash.
+   */
+  public static async deleteItem(targetPath: string, useTrash: boolean = true): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!this.isPathSafe(targetPath)) {
+        vscode.window.showErrorMessage('Security Alert: Path traversal rejected by containment guard.');
+        return { success: false, error: 'Path traversal rejected by containment guard.' };
+      }
+
+      const uri = vscode.Uri.file(targetPath);
+      const base = path.basename(targetPath);
+      const actionLabel = useTrash ? 'Move to Trash' : 'Delete Permanently';
+
+      const confirmed = await vscode.window.showWarningMessage(
+        `Are you sure you want to delete '${base}'?`,
+        { modal: true },
+        actionLabel
+      );
+
+      if (confirmed !== actionLabel) {
+        return { success: false };
+      }
+
+      await vscode.workspace.fs.delete(uri, { useTrash, recursive: true });
+      vscode.window.showInformationMessage(`Deleted: ${base}`);
+      return { success: true };
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`Delete failed: ${err.message || err}`);
+      return { success: false, error: err.message || String(err) };
+    }
+  }
+
+  /**
+   * Duplicates a file or folder next to the original with _copy suffix.
+   */
+  public static async duplicateItem(sourcePath: string): Promise<{ success: boolean; newPath?: string; error?: string }> {
+    try {
+      const parentDir = path.dirname(sourcePath);
+      return await this.copyItem(sourcePath, parentDir);
+    } catch (err: any) {
+      return { success: false, error: err.message || String(err) };
     }
   }
 }

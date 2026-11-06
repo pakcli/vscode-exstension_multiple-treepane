@@ -24,6 +24,9 @@ tags: [vscode, extension, antigravity, multiple-treepane, guide, manual]
    - [3.7 Copy Selected Content (Multi-Panel & Native Explorer)](#37-copy-selected-content-multi-panel--native-explorer)
    - [3.8 Interactive Git Badge & Source Control Focus](#38-interactive-git-badge--source-control-focus)
    - [3.9 Terminal Drag-and-Drop & Context Actions](#39-terminal-drag-and-drop--context-actions)
+   - [3.10 Live File System Watcher & Direct File/Folder Creation](#310-live-file-system-watcher--direct-filefolder-creation)
+   - [3.11 Pointer Capture Gutter Resizing & Anti-Stuck Cursor Failsafe](#311-pointer-capture-gutter-resizing--anti-stuck-cursor-failsafe)
+   - [3.12 Native Explorer Parity, File Diffing, Keyboard Navigation & Git Status Badges](#312-native-explorer-parity-file-diffing-keyboard-navigation--git-status-badges)
 4. [Development & Packaging Workflow (out/dist vs out/vsix)](#4-development--packaging-workflow-outdist-vs-outvsix)
 5. [Troubleshooting & Root Cause Matrix](#5-troubleshooting--root-cause-matrix)
 
@@ -191,6 +194,28 @@ Each tree pane features a compact 2-row subheader by default:
   * **Escape Key**: Pressing `Escape` resets all cursor locks and closes context menus.
   * **3.5s Watchdog**: Emergency timer auto-restores default cursor if no movement occurs during resize.
 
+### 3.12 Native Explorer Parity, File Diffing, Keyboard Navigation & Git Status Badges
+
+* **Native Explorer Parity Right-Click Actions**:
+  * **Open to the Side (`Ctrl+Enter`)**: Opens the selected file in a split editor beside the current active editor (`vscode.ViewColumn.Beside`).
+  * **Select for Compare & Compare with Selected (`vscode.diff`)**: Allows choosing a base file (`Select for Compare`) and comparing it against another file across any pane via VS Code's native side-by-side diff viewer.
+  * **Find in Folder...**: Scopes VS Code's search widget (`workbench.action.findInFiles`) to the selected folder path (`filesToInclude: folder/**`).
+  * **Duplicate**: Clones file or folder with automated non-colliding suffix naming (`copy`, `copy 2`, etc.).
+  * **Delete to Trash (`Delete` key)**: Safely moves selected files or directories to system Recycle Bin / Trash with modal confirmation via `vscode.workspace.fs.delete(uri, { useTrash: true })`.
+* **Live Git File Status Badges**:
+  * File and folder nodes display real-time status badges: `M` (Modified), `U` (Untracked), `A` (Added), `D` (Deleted), and `R` (Renamed).
+  * Node labels adaptively match VS Code's official theme tokens (`--vscode-gitDecoration-modifiedResourceForeground`, `--vscode-gitDecoration-untrackedResourceForeground`, etc.).
+* **Comprehensive Keyboard Navigation**:
+  * `ArrowUp` / `ArrowDown`: Moves selection up and down across visible tree nodes with automatic scrolling into view.
+  * `ArrowRight`: Expands collapsed folders; if already expanded, steps selection into the first child node.
+  * `ArrowLeft`: Collapses expanded folders; if already collapsed or a file, jumps selection to the parent folder.
+  * `Enter`: Opens the selected file or toggles folder expansion.
+  * `Ctrl+Enter` / `Cmd+Enter`: Opens the selected file to the side.
+  * `F2`: Triggers inline renaming on the selected node.
+  * `Delete`: Initiates safe deletion to Trash.
+* **Visual Tree Indentation Guides**:
+  * Subtle vertical indentation guideline matching `--vscode-tree-indentGuidesStroke` provides crystal clear hierarchy tracking for deeply nested multi-root directories.
+
 ---
 
 ## 4. Development & Packaging Workflow (out/dist vs out/vsix)
@@ -202,13 +227,14 @@ out/
 ├── dist/                                     # TypeScript compiler output (tsc)
 │   ├── extension.js & extension.js.map
 │   ├── FileSystemService.js & .map
+│   ├── GitStatusService.js & .map
 │   ├── TreePanelManager.js & .map
 │   ├── TreeSidebarProvider.js & .map
 │   ├── WebviewUtils.js & .map
 │   └── types.js & .map
 └── vsix/                                     # Packaged release archives
-    ├── multiple-treepane-v01-01-02.vsix
-    ├── multiple-treepane-v01.01.02.vsix
+    ├── multiple-treepane-v01-01-06.vsix
+    ├── multiple-treepane-v01.01.06.vsix
     └── ... (historical archives)
 ```
 
@@ -235,28 +261,28 @@ npm run watch
 npm run package
 ```
 *Output artifacts:*
-- `./out/vsix/multiple-treepane-v01-01-05.vsix`
-- `./out/vsix/multiple-treepane-v01.01.05.vsix`
+- `./out/vsix/multiple-treepane-v01-01-06.vsix`
+- `./out/vsix/multiple-treepane-v01.01.06.vsix`
 
 ### Automated Lifecycle Version Bumps
 ```bash
-# Patch bump: 1.1.5 -> 1.1.6 (v01-01-06)
+# Patch bump: 1.1.6 -> 1.1.7 (v01-01-07)
 npm run bump:patch
 
-# Minor bump: 1.1.5 -> 1.2.0 (v01-02-00)
+# Minor bump: 1.1.6 -> 1.2.0 (v01-02-00)
 npm run bump:minor
 
-# Major bump: 1.1.5 -> 2.0.0 (v02-00-00)
+# Major bump: 1.1.6 -> 2.0.0 (v02-00-00)
 npm run bump:major
 ```
 
 ### Installation
 ```bash
 # In VS Code:
-code --install-extension ./out/vsix/multiple-treepane-v01-01-05.vsix
+code --install-extension ./out/vsix/multiple-treepane-v01-01-06.vsix
 
 # In Google Antigravity IDE:
-antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-05.vsix
+antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-06.vsix
 ```
 
 ---

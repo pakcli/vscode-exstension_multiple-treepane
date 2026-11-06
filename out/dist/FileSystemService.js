@@ -4,6 +4,7 @@ exports.FileSystemService = void 0;
 const vscode = require("vscode");
 const path = require("path");
 const fs = require("fs");
+const GitStatusService_1 = require("./GitStatusService");
 class FileSystemService {
     /**
      * Scans workspace folders and subdirectories to discover active repositories/projects.
@@ -83,6 +84,13 @@ class FileSystemService {
         const folderName = path.basename(normPath) || normPath;
         const uri = vscode.Uri.file(normPath);
         const isGit = this.checkIsGitRepoSync(normPath);
+        let gitMap;
+        if (isGit) {
+            try {
+                gitMap = await GitStatusService_1.GitStatusService.getRepoStatusMap(normPath);
+            }
+            catch { }
+        }
         const rootNode = {
             name: folderName,
             path: normPath,
@@ -91,7 +99,7 @@ class FileSystemService {
             isExpanded: true,
             children: []
         };
-        rootNode.children = await this.readChildren(uri, 1, maxDepth);
+        rootNode.children = await this.readChildren(uri, 1, maxDepth, gitMap);
         return rootNode;
     }
     /**
@@ -100,12 +108,24 @@ class FileSystemService {
     static async readSubfolderChildren(folderPath, depth = 3) {
         const normPath = folderPath.replace(/\\/g, '/');
         const uri = vscode.Uri.file(normPath);
-        return this.readChildren(uri, 1, depth);
+        let gitMap;
+        let curr = normPath;
+        while (curr && curr !== path.dirname(curr)) {
+            if (this.checkIsGitRepoSync(curr)) {
+                try {
+                    gitMap = await GitStatusService_1.GitStatusService.getRepoStatusMap(curr);
+                }
+                catch { }
+                break;
+            }
+            curr = path.dirname(curr).replace(/\\/g, '/');
+        }
+        return this.readChildren(uri, 1, depth, gitMap);
     }
     /**
      * Helper to read children up to maxDepth.
      */
-    static async readChildren(uri, currentDepth, maxDepth) {
+    static async readChildren(uri, currentDepth, maxDepth, gitMap) {
         if (currentDepth > maxDepth) {
             return [];
         }
@@ -139,10 +159,13 @@ class FileSystemService {
                     isDirectory: isDir,
                     isExpanded: false
                 };
+                if (gitMap && gitMap.has(childPath.toLowerCase())) {
+                    node.gitStatus = gitMap.get(childPath.toLowerCase());
+                }
                 if (isDir) {
                     node.isGitRepo = this.checkIsGitRepoSync(childPath);
                     if (currentDepth < maxDepth) {
-                        node.children = await this.readChildren(childUri, currentDepth + 1, maxDepth);
+                        node.children = await this.readChildren(childUri, currentDepth + 1, maxDepth, gitMap);
                     }
                     else {
                         node.children = [];
@@ -553,6 +576,87 @@ class FileSystemService {
         }
         catch (err) {
             vscode.window.showErrorMessage(`Failed to send path to terminal: ${err.message || err}`);
+        }
+    }
+    /**
+     * Opens file beside active editor column.
+     */
+    static async openToSide(filePath) {
+        try {
+            const uri = vscode.Uri.file(filePath);
+            await vscode.commands.executeCommand('vscode.open', uri, {
+                viewColumn: vscode.ViewColumn.Beside
+            });
+        }
+        catch (err) {
+            vscode.window.showErrorMessage(`Failed to open to side: ${err.message || err}`);
+        }
+    }
+    /**
+     * Compares two files using VS Code native diff viewer.
+     */
+    static async compareFiles(sourcePath, targetPath) {
+        try {
+            const uriA = vscode.Uri.file(sourcePath);
+            const uriB = vscode.Uri.file(targetPath);
+            const nameA = path.basename(sourcePath);
+            const nameB = path.basename(targetPath);
+            await vscode.commands.executeCommand('vscode.diff', uriA, uriB, `${nameA} ↔ ${nameB}`);
+        }
+        catch (err) {
+            vscode.window.showErrorMessage(`Comparison failed: ${err.message || err}`);
+        }
+    }
+    /**
+     * Scopes global search to a target folder.
+     */
+    static async findInFolder(folderPath) {
+        try {
+            const norm = folderPath.replace(/\\/g, '/');
+            await vscode.commands.executeCommand('workbench.action.findInFiles', {
+                query: '',
+                filesToInclude: `${norm}/**`
+            });
+        }
+        catch (err) {
+            vscode.window.showErrorMessage(`Find in folder failed: ${err.message || err}`);
+        }
+    }
+    /**
+     * Deletes a file or directory safely to trash.
+     */
+    static async deleteItem(targetPath, useTrash = true) {
+        try {
+            if (!this.isPathSafe(targetPath)) {
+                vscode.window.showErrorMessage('Security Alert: Path traversal rejected by containment guard.');
+                return { success: false, error: 'Path traversal rejected by containment guard.' };
+            }
+            const uri = vscode.Uri.file(targetPath);
+            const base = path.basename(targetPath);
+            const actionLabel = useTrash ? 'Move to Trash' : 'Delete Permanently';
+            const confirmed = await vscode.window.showWarningMessage(`Are you sure you want to delete '${base}'?`, { modal: true }, actionLabel);
+            if (confirmed !== actionLabel) {
+                return { success: false };
+            }
+            await vscode.workspace.fs.delete(uri, { useTrash, recursive: true });
+            vscode.window.showInformationMessage(`Deleted: ${base}`);
+            return { success: true };
+        }
+        catch (err) {
+            vscode.window.showErrorMessage(`Delete failed: ${err.message || err}`);
+            return { success: false, error: err.message || String(err) };
+        }
+    }
+    /**
+     * Duplicates a file or folder next to the original with _copy suffix.
+     */
+    static async duplicateItem(sourcePath) {
+        try {
+            const parentDir = path.dirname(sourcePath);
+            return await this.copyItem(sourcePath, parentDir);
+        }
+        catch (err) {
+            return { success: false, error: err.message || String(err) };
         }
     }
 }

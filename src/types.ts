@@ -3,6 +3,7 @@ export interface TreeNode {
   path: string;
   isDirectory: boolean;
   isGitRepo?: boolean;
+  gitStatus?: 'M' | 'U' | 'A' | 'D' | 'R';
   children?: TreeNode[];
   isExpanded?: boolean;
 }
@@ -55,6 +56,11 @@ export type InboundMessage =
   | { command: 'openInTerminal'; folderPath: string }
   | { command: 'sendToTerminal'; paths: string[]; execute?: boolean }
   | { command: 'createNewItem'; paneId: string; targetDirPath: string; isFolder: boolean }
+  | { command: 'openToSide'; filePath: string }
+  | { command: 'compareFiles'; sourcePath: string; targetPath: string }
+  | { command: 'findInFolder'; folderPath: string }
+  | { command: 'deleteItem'; filePath: string; paneId: string; useTrash?: boolean }
+  | { command: 'duplicateItem'; sourcePath: string; paneId: string }
   | { command: 'revealInOS'; filePath: string }
   | { command: 'loadSubfolder'; paneId: string; folderPath: string };
 

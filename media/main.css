@@ -908,10 +908,65 @@ body.is-resizing-v {
   margin-left: 6px;
 }
 
+/* Git Status Badges & Native Theme Parity Decorations */
+.tree-git-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 2px;
+  line-height: 14px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.tree-git-badge.status-M {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
+}
+.tree-git-badge.status-U {
+  color: var(--vscode-gitDecoration-untrackedResourceForeground, #73c991);
+}
+.tree-git-badge.status-A {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b);
+}
+.tree-git-badge.status-D {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+}
+.tree-git-badge.status-R {
+  color: var(--vscode-gitDecoration-renamedResourceForeground, #73c991);
+}
+
+.tree-node[data-git-status="M"] > .tree-label {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
+}
+.tree-node[data-git-status="U"] > .tree-label {
+  color: var(--vscode-gitDecoration-untrackedResourceForeground, #73c991);
+}
+.tree-node[data-git-status="A"] > .tree-label {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b);
+}
+.tree-node[data-git-status="D"] > .tree-label {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+}
+.tree-node[data-git-status="R"] > .tree-label {
+  color: var(--vscode-gitDecoration-renamedResourceForeground, #73c991);
+}
+
 .tree-indent {
   display: inline-block;
   width: 14px;
+  height: 100%;
   flex-shrink: 0;
+  position: relative;
+}
+
+.tree-indent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 6px;
+  width: 1px;
+  background-color: var(--vscode-tree-indentGuidesStroke, rgba(128, 128, 128, 0.18));
 }
 
 .tree-arrow {

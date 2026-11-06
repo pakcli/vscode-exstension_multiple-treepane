@@ -2,7 +2,7 @@
   "name": "multiple-treepane",
   "displayName": "Multiple TreePane Explorer",
   "description": "Concurrent multi-repository file tree explorer with adaptive vertical/horizontal splitting for VS Code & Antigravity IDE",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "publisher": "all-lads-tool",
   "license": "MIT",
   "repository": {

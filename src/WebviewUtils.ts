@@ -307,6 +307,37 @@ export class WebviewUtils {
         break;
       }
 
+      case 'openToSide': {
+        await FileSystemService.openToSide(message.filePath);
+        break;
+      }
+
+      case 'compareFiles': {
+        await FileSystemService.compareFiles(message.sourcePath, message.targetPath);
+        break;
+      }
+
+      case 'findInFolder': {
+        await FileSystemService.findInFolder(message.folderPath);
+        break;
+      }
+
+      case 'deleteItem': {
+        const res = await FileSystemService.deleteItem(message.filePath, message.useTrash !== false);
+        if (res.success) {
+          await WebviewUtils.refreshPaneTrees(webview, panes, [message.paneId]);
+        }
+        break;
+      }
+
+      case 'duplicateItem': {
+        const res = await FileSystemService.duplicateItem(message.sourcePath);
+        if (res.success) {
+          await WebviewUtils.refreshPaneTrees(webview, panes, [message.paneId]);
+        }
+        break;
+      }
+
       case 'revealInOS': {
         const uri = vscode.Uri.file(message.filePath);
         await vscode.commands.executeCommand('revealFileInOS', uri);

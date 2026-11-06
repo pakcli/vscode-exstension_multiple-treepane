@@ -266,6 +266,32 @@ class WebviewUtils {
                 await FileSystemService_1.FileSystemService.sendPathsToTerminal(message.paths, Boolean(message.execute));
                 break;
             }
+            case 'openToSide': {
+                await FileSystemService_1.FileSystemService.openToSide(message.filePath);
+                break;
+            }
+            case 'compareFiles': {
+                await FileSystemService_1.FileSystemService.compareFiles(message.sourcePath, message.targetPath);
+                break;
+            }
+            case 'findInFolder': {
+                await FileSystemService_1.FileSystemService.findInFolder(message.folderPath);
+                break;
+            }
+            case 'deleteItem': {
+                const res = await FileSystemService_1.FileSystemService.deleteItem(message.filePath, message.useTrash !== false);
+                if (res.success) {
+                    await WebviewUtils.refreshPaneTrees(webview, panes, [message.paneId]);
+                }
+                break;
+            }
+            case 'duplicateItem': {
+                const res = await FileSystemService_1.FileSystemService.duplicateItem(message.sourcePath);
+                if (res.success) {
+                    await WebviewUtils.refreshPaneTrees(webview, panes, [message.paneId]);
+                }
+                break;
+            }
             case 'revealInOS': {
                 const uri = vscode.Uri.file(message.filePath);
                 await vscode.commands.executeCommand('revealFileInOS', uri);
