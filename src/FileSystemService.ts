@@ -362,6 +362,73 @@ export class FileSystemService {
   }
 
   /**
+   * Creates a new file or directory inside targetDirPath.
+   */
+  public static async createNewItem(
+    targetDirPath: string,
+    isFolder: boolean,
+    specifiedName?: string
+  ): Promise<{ success: boolean; newPath?: string; error?: string }> {
+    try {
+      if (!this.isPathSafe(targetDirPath)) {
+        vscode.window.showErrorMessage('Security Alert: Path traversal rejected by containment guard.');
+        return { success: false, error: 'Path traversal rejected by containment guard.' };
+      }
+
+      let itemName = specifiedName?.trim();
+      if (!itemName) {
+        itemName = await vscode.window.showInputBox({
+          prompt: isFolder ? 'Enter new folder name:' : 'Enter new file name (e.g. index.ts):',
+          placeHolder: isFolder ? 'new-folder' : 'new-file.txt',
+          validateInput: (val) => {
+            const trimmed = val.trim();
+            if (!trimmed) {
+              return 'Name cannot be empty.';
+            }
+            if (trimmed.includes('/') || trimmed.includes('\\') || trimmed === '..' || trimmed === '.') {
+              return 'Name cannot contain path separators or parent directory references.';
+            }
+            return null;
+          }
+        });
+      }
+
+      if (!itemName) {
+        return { success: false };
+      }
+
+      const normTarget = targetDirPath.replace(/\\/g, '/');
+      const newFullPath = path.posix.join(normTarget, itemName);
+      const newUri = vscode.Uri.file(newFullPath);
+
+      try {
+        await vscode.workspace.fs.stat(newUri);
+        vscode.window.showWarningMessage(`${isFolder ? 'Folder' : 'File'} '${itemName}' already exists.`);
+        return { success: false, error: 'Item already exists.' };
+      } catch {
+        // Safe to create
+      }
+
+      if (isFolder) {
+        await vscode.workspace.fs.createDirectory(newUri);
+        vscode.window.showInformationMessage(`Folder created: ${itemName}`);
+      } else {
+        await vscode.workspace.fs.writeFile(newUri, new Uint8Array(0));
+        vscode.window.showInformationMessage(`File created: ${itemName}`);
+        try {
+          const doc = await vscode.workspace.openTextDocument(newUri);
+          await vscode.window.showTextDocument(doc, { preview: false });
+        } catch {}
+      }
+
+      return { success: true, newPath: newFullPath };
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`Creation failed: ${err.message || err}`);
+      return { success: false, error: err.message || String(err) };
+    }
+  }
+
+  /**
    * Moves multiple files or directories into a target directory.
    */
   public static async moveItems(

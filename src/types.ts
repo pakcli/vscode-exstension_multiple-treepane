@@ -54,6 +54,7 @@ export type InboundMessage =
   | { command: 'openSourceControl'; repoPath: string }
   | { command: 'openInTerminal'; folderPath: string }
   | { command: 'sendToTerminal'; paths: string[]; execute?: boolean }
+  | { command: 'createNewItem'; paneId: string; targetDirPath: string; isFolder: boolean }
   | { command: 'revealInOS'; filePath: string }
   | { command: 'loadSubfolder'; paneId: string; folderPath: string };
 

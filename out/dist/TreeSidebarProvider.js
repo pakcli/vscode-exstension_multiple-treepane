@@ -4,6 +4,7 @@ exports.TreeSidebarProvider = void 0;
 const vscode = require("vscode");
 const WebviewUtils_1 = require("./WebviewUtils");
 const FileSystemService_1 = require("./FileSystemService");
+const PaneWatcherManager_1 = require("./PaneWatcherManager");
 class TreeSidebarProvider {
     _context;
     static viewType = 'multipleTreePane.sidebarView';
@@ -26,8 +27,14 @@ class TreeSidebarProvider {
                 this._panes = newPanes;
                 this._layout = newLayout;
                 this._saveState();
+                PaneWatcherManager_1.PaneWatcherManager.getInstance().syncWatchers();
             });
         });
+        const watcherSub = PaneWatcherManager_1.PaneWatcherManager.getInstance().registerClient({
+            getWebview: () => this._view?.webview,
+            getPanes: () => this._panes
+        });
+        this._context.subscriptions.push(watcherSub);
     }
     async addPane(folderPath) {
         if (!this._view) {
@@ -45,6 +52,7 @@ class TreeSidebarProvider {
         };
         this._panes.push(newPane);
         this._saveState();
+        PaneWatcherManager_1.PaneWatcherManager.getInstance().syncWatchers();
         if (defaultPath) {
             const tree = await FileSystemService_1.FileSystemService.readFolderTree(defaultPath);
             this._view.webview.postMessage({

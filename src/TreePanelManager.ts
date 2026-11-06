@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { PaneConfig } from './types';
 import { WebviewUtils } from './WebviewUtils';
 import { FileSystemService } from './FileSystemService';
+import { PaneWatcherManager } from './PaneWatcherManager';
 
 export class TreePanelManager {
   public static currentPanel: TreePanelManager | undefined;
@@ -55,11 +56,18 @@ export class TreePanelManager {
           this._panes = newPanes;
           this._layout = newLayout;
           this._saveState();
+          PaneWatcherManager.getInstance().syncWatchers();
         }
       );
     });
 
+    const watcherSub = PaneWatcherManager.getInstance().registerClient({
+      getWebview: () => this._panel.webview,
+      getPanes: () => this._panes
+    });
+
     this._panel.onDidDispose(() => {
+      watcherSub.dispose();
       TreePanelManager.currentPanel = undefined;
     });
   }

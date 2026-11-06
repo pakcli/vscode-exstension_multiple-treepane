@@ -162,6 +162,20 @@ Each tree pane features a compact 2-row subheader by default:
   * `Send Path to Terminal`: Focuses the active VS Code terminal and types the formatted path string without pressing Enter, ready for CLI command prefixing (`cd `, `cat `, `git add `).
   * `Copy Path for Terminal`: Copies the terminal-quoted path directly to system clipboard.
 
+### 3.10 Live File System Watcher & Direct File/Folder Creation
+
+* **Reactive File System Watcher Subsystem (`PaneWatcherManager`)**:
+  * Dynamically registers `vscode.workspace.createFileSystemWatcher` for each active pane root directory.
+  * Automatically detects `onDidCreate`, `onDidDelete`, and `onDidChange` file events triggered from external terminals, scripts, git commands, or other VS Code tabs.
+  * Filters out noise patterns (`node_modules`, `.git`, `out`, `dist`, `*.tmp`, `*.bak`).
+  * Coalesces high-frequency file event bursts through a trailing-edge debounce buffer (150ms) to prevent UI lag.
+* **Non-Destructive Live Tree Updates**:
+  * Refreshes the target directory tree without collapsing expanded folders (`node.isExpanded` preserved recursively).
+  * Retains current scroll offset (`scrollTop`) and active selection focus.
+* **Direct File & Folder Creation**:
+  * Context menu options **"New File..."** and **"New Folder..."** on both tree nodes and pane canvas backgrounds.
+  * Prompts for filename/folder name via `showInputBox`, validates against illegal path traversal characters, and automatically opens newly created files in editor.
+
 ---
 
 ## 4. Development & Packaging Workflow (out/dist vs out/vsix)
@@ -206,28 +220,28 @@ npm run watch
 npm run package
 ```
 *Output artifacts:*
-- `./out/vsix/multiple-treepane-v01-01-03.vsix`
-- `./out/vsix/multiple-treepane-v01.01.03.vsix`
+- `./out/vsix/multiple-treepane-v01-01-04.vsix`
+- `./out/vsix/multiple-treepane-v01.01.04.vsix`
 
 ### Automated Lifecycle Version Bumps
 ```bash
-# Patch bump: 1.1.3 -> 1.1.4 (v01-01-04)
+# Patch bump: 1.1.4 -> 1.1.5 (v01-01-05)
 npm run bump:patch
 
-# Minor bump: 1.1.3 -> 1.2.0 (v01-02-00)
+# Minor bump: 1.1.4 -> 1.2.0 (v01-02-00)
 npm run bump:minor
 
-# Major bump: 1.1.3 -> 2.0.0 (v02-00-00)
+# Major bump: 1.1.4 -> 2.0.0 (v02-00-00)
 npm run bump:major
 ```
 
 ### Installation
 ```bash
 # In VS Code:
-code --install-extension ./out/vsix/multiple-treepane-v01-01-03.vsix
+code --install-extension ./out/vsix/multiple-treepane-v01-01-04.vsix
 
 # In Google Antigravity IDE:
-antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-03.vsix
+antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-04.vsix
 ```
 
 ---
@@ -236,6 +250,7 @@ antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-03.vsix
 
 | Symptom / Failure Mode | Root Cause | Prevention & Resolution |
 | :--- | :--- | :--- |
+| **File creations, deletions, or external changes not detected in tree pane** | Extension host previously had zero `vscode.FileSystemWatcher` registrations, leaving webview state blind to disk events until manual refresh. | Integrated `PaneWatcherManager` registering per-root `vscode.workspace.createFileSystemWatcher` with 150ms trailing debounce and non-destructive expansion-preserving DOM patching. |
 | **Horizontal panes collapse vertically or shrink to file count in canvas** | CSS flex container children defaulted to `align-items: flex-start` or inherited leftover vertical inline height styles. | Enforced `align-items: stretch !important`, `height: 100% !important`, and `box-sizing: border-box` on `.panes-container.layout-horizontal` and `.tree-pane` in `media/main.css`. In `media/main.js`, layout switcher strips stale inline heights. |
 | **Cut nodes stay dimmed if paste is aborted** | Missing cancellation hook for pending cut operations in UI. | Added `Escape` key event listener and right-click backdrop dismiss that resets `fileClipboard` state and invokes `clearCutVisuals()`. |
 | **VSIX packages recursively include existing .vsix files** | Root `out/` folder contained both `.js` and previous `.vsix` packages, which vsce bundled. | Split `out/` into `out/dist/` and `out/vsix/`. Added `out/vsix/**` to `.vscodeignore` and `.gitignore`. |

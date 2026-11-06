@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { PaneConfig } from './types';
 import { WebviewUtils } from './WebviewUtils';
 import { FileSystemService } from './FileSystemService';
+import { PaneWatcherManager } from './PaneWatcherManager';
 
 export class TreeSidebarProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'multipleTreePane.sidebarView';
@@ -42,9 +43,16 @@ export class TreeSidebarProvider implements vscode.WebviewViewProvider {
           this._panes = newPanes;
           this._layout = newLayout;
           this._saveState();
+          PaneWatcherManager.getInstance().syncWatchers();
         }
       );
     });
+
+    const watcherSub = PaneWatcherManager.getInstance().registerClient({
+      getWebview: () => this._view?.webview,
+      getPanes: () => this._panes
+    });
+    this._context.subscriptions.push(watcherSub);
   }
 
   public async addPane(folderPath?: string): Promise<void> {
@@ -63,6 +71,7 @@ export class TreeSidebarProvider implements vscode.WebviewViewProvider {
     };
     this._panes.push(newPane);
     this._saveState();
+    PaneWatcherManager.getInstance().syncWatchers();
 
     if (defaultPath) {
       const tree = await FileSystemService.readFolderTree(defaultPath);

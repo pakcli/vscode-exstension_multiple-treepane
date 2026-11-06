@@ -244,6 +244,15 @@ export class WebviewUtils {
         break;
       }
 
+      case 'createNewItem': {
+        const { targetDirPath, isFolder, paneId } = message;
+        const res = await FileSystemService.createNewItem(targetDirPath, Boolean(isFolder));
+        if (res.success) {
+          await WebviewUtils.refreshPaneTrees(webview, panes, [paneId]);
+        }
+        break;
+      }
+
       case 'moveToRepo': {
         const repos = await FileSystemService.discoverWorkspaceRepos();
         if (repos.length === 0) {

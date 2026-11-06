@@ -89,8 +89,47 @@
       }
 
       case 'renderTree': {
+        const currentTree = state.trees[message.paneId];
+        const expandedPaths = new Set();
+        if (currentTree) {
+          const collectExpanded = (node) => {
+            if (!node) return;
+            if (node.isExpanded && node.path) {
+              expandedPaths.add(node.path);
+            }
+            if (node.children) {
+              for (const child of node.children) {
+                collectExpanded(child);
+              }
+            }
+          };
+          collectExpanded(currentTree);
+        }
+
+        if (message.tree && expandedPaths.size > 0) {
+          const restoreExpanded = (node) => {
+            if (!node) return;
+            if (expandedPaths.has(node.path)) {
+              node.isExpanded = true;
+            }
+            if (node.children) {
+              for (const child of node.children) {
+                restoreExpanded(child);
+              }
+            }
+          };
+          restoreExpanded(message.tree);
+        }
+
+        const contentEl = document.getElementById(`tree_content_${message.paneId}`);
+        const prevScrollTop = contentEl ? contentEl.scrollTop : 0;
+
         state.trees[message.paneId] = message.tree;
         renderPaneTree(message.paneId);
+
+        if (contentEl) {
+          contentEl.scrollTop = prevScrollTop;
+        }
         break;
       }
 
@@ -1753,6 +1792,13 @@
     }, true);
 
     menu.innerHTML = `
+      <div class="context-menu-item" data-action="newFile">
+        <span class="item-label">New File...</span>
+      </div>
+      <div class="context-menu-item" data-action="newFolder">
+        <span class="item-label">New Folder...</span>
+      </div>
+      <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="cut">
         <span class="item-label">Cut${countBadge}</span>
         <span class="item-shortcut">Ctrl+X</span>
@@ -1814,6 +1860,22 @@
 
       const action = targetItem.dataset.action;
       switch (action) {
+        case 'newFile':
+          vscode.postMessage({
+            command: 'createNewItem',
+            paneId,
+            targetDirPath,
+            isFolder: false
+          });
+          break;
+        case 'newFolder':
+          vscode.postMessage({
+            command: 'createNewItem',
+            paneId,
+            targetDirPath,
+            isFolder: true
+          });
+          break;
         case 'cut':
           executeCut(activePaths, paneId);
           break;
@@ -1911,6 +1973,13 @@
     }, true);
 
     menu.innerHTML = `
+      <div class="context-menu-item" data-action="newFile">
+        <span class="item-label">New File...</span>
+      </div>
+      <div class="context-menu-item" data-action="newFolder">
+        <span class="item-label">New Folder...</span>
+      </div>
+      <div class="context-menu-divider"></div>
       <div class="context-menu-item ${!canPaste ? 'disabled' : ''}" data-action="paste">
         <span class="item-label">Paste into Root${pasteCount}</span>
         <span class="item-shortcut">Ctrl+V</span>
@@ -1952,6 +2021,22 @@
 
       const action = targetItem.dataset.action;
       switch (action) {
+        case 'newFile':
+          vscode.postMessage({
+            command: 'createNewItem',
+            paneId,
+            targetDirPath: fullPath,
+            isFolder: false
+          });
+          break;
+        case 'newFolder':
+          vscode.postMessage({
+            command: 'createNewItem',
+            paneId,
+            targetDirPath: fullPath,
+            isFolder: true
+          });
+          break;
         case 'paste':
           if (canPaste) {
             executePaste(fullPath);

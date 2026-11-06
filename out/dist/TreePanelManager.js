@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TreePanelManager = void 0;
 const vscode = require("vscode");
 const WebviewUtils_1 = require("./WebviewUtils");
+const PaneWatcherManager_1 = require("./PaneWatcherManager");
 class TreePanelManager {
     _context;
     static currentPanel;
@@ -32,9 +33,15 @@ class TreePanelManager {
                 this._panes = newPanes;
                 this._layout = newLayout;
                 this._saveState();
+                PaneWatcherManager_1.PaneWatcherManager.getInstance().syncWatchers();
             });
         });
+        const watcherSub = PaneWatcherManager_1.PaneWatcherManager.getInstance().registerClient({
+            getWebview: () => this._panel.webview,
+            getPanes: () => this._panes
+        });
         this._panel.onDidDispose(() => {
+            watcherSub.dispose();
             TreePanelManager.currentPanel = undefined;
         });
     }
