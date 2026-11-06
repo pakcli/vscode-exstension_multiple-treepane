@@ -1,0 +1,90 @@
+{
+  "name": "multiple-treepane",
+  "displayName": "Multiple TreePane Explorer",
+  "description": "Concurrent multi-repository file tree explorer with adaptive vertical/horizontal splitting for VS Code & Antigravity IDE",
+  "version": "1.1.1",
+  "publisher": "all-lads-tool",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/local/multiple-treepane"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:multipleTreePane.sidebarView"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "multipleTreePane.openEditorTab",
+        "title": "Multiple TreePane: Open in Full-Width Editor Tab",
+        "icon": "$(layout-sidebar-right)"
+      },
+      {
+        "command": "multipleTreePane.refresh",
+        "title": "Multiple TreePane: Refresh All Trees",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "multipleTreePane.addPane",
+        "title": "Multiple TreePane: Add Directory Tree Pane",
+        "icon": "$(add)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "multiple-treepane-view",
+          "title": "Multiple TreePane",
+          "icon": "media/icons/treepane.svg"
+        }
+      ]
+    },
+    "views": {
+      "multiple-treepane-view": [
+        {
+          "type": "webview",
+          "id": "multipleTreePane.sidebarView",
+          "name": "Multiple TreePane"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "multipleTreePane.openEditorTab",
+          "when": "view == multipleTreePane.sidebarView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "multipleTreePane.addPane",
+          "when": "view == multipleTreePane.sidebarView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "multipleTreePane.refresh",
+          "when": "view == multipleTreePane.sidebarView",
+          "group": "navigation@3"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "prepublish": "npm run compile",
+    "package": "npx -y @vscode/vsce package --no-dependencies -o ./out/multiple-treepane-1.1.1.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.3.0"
+  }
+}
