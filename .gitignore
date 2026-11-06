@@ -1,5 +1,8 @@
 node_modules/
 .vscode-test/
-*.vsix
-trash-bin/
+# ignore vsix files
+##*.vsix
+##**/*.vsix
+##out/vsix/
+##trash-bin/
 .DS_Store

@@ -383,4 +383,90 @@ export class FileSystemService {
     }
     return { success: copiedCount > 0, copiedCount, errors };
   }
+
+  /**
+   * Reads the text content of selected file(s) and copies it to the clipboard.
+   * Formats multi-file selections cleanly with file headers.
+   */
+  public static async copySelectedContent(paths: string[]): Promise<void> {
+    if (!paths || paths.length === 0) {
+      return;
+    }
+
+    const fileEntries: { path: string; name: string; content: string }[] = [];
+
+    for (const p of paths) {
+      try {
+        const normPath = p.replace(/\\/g, '/');
+        const uri = vscode.Uri.file(normPath);
+        const stat = await vscode.workspace.fs.stat(uri);
+        if (stat.type === vscode.FileType.File) {
+          const raw = await vscode.workspace.fs.readFile(uri);
+          const text = Buffer.from(raw).toString('utf8');
+          fileEntries.push({
+            path: normPath,
+            name: path.basename(normPath),
+            content: text
+          });
+        }
+      } catch {
+        // Skip inaccessible file
+      }
+    }
+
+    if (fileEntries.length === 0) {
+      vscode.window.showWarningMessage('No readable files in selection to copy content.');
+      return;
+    }
+
+    let resultText = '';
+    if (fileEntries.length === 1) {
+      resultText = fileEntries[0].content;
+    } else {
+      resultText = fileEntries
+        .map((f) => `// === File: ${f.name} (${f.path}) ===\n${f.content}`)
+        .join('\n\n');
+    }
+
+    await vscode.env.clipboard.writeText(resultText);
+    vscode.window.setStatusBarMessage(
+      `Copied content of ${fileEntries.length} file(s) to clipboard`,
+      3000
+    );
+  }
+
+  /**
+   * Opens and focuses the native Source Control view for the specified repository.
+   */
+  public static async openSourceControlForRepo(repoPath: string): Promise<void> {
+    try {
+      // First reveal / focus the Source Control view container
+      await vscode.commands.executeCommand('workbench.view.scm');
+
+      // Attempt to focus the specific repo if VS Code's git extension is available
+      const gitExtension = vscode.extensions.getExtension('vscode.git');
+      if (gitExtension) {
+        if (!gitExtension.isActive) {
+          await gitExtension.activate();
+        }
+        const git = gitExtension.exports?.getAPI?.(1);
+        if (git && git.repositories && git.repositories.length > 0) {
+          const normTarget = repoPath.replace(/\\/g, '/').toLowerCase();
+          const targetRepo = git.repositories.find((r: any) => {
+            const rPath = r.rootUri.fsPath.replace(/\\/g, '/').toLowerCase();
+            return rPath === normTarget || normTarget.startsWith(rPath);
+          });
+          if (targetRepo && targetRepo.ui) {
+            if (typeof targetRepo.ui.focus === 'function') {
+              targetRepo.ui.focus();
+            }
+          }
+        }
+      }
+      vscode.window.setStatusBarMessage(`Opened Source Control: ${path.basename(repoPath)}`, 3000);
+    } catch {
+      // Fallback: make sure at least Source Control view is opened
+      await vscode.commands.executeCommand('workbench.view.scm');
+    }
+  }
 }

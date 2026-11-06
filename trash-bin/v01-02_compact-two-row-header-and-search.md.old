@@ -1,0 +1,233 @@
+---
+title: Multiple TreePane - Compact Two-Row Subheader & Vanilla Search Architecture
+version: v01-02
+status: canonical
+dependencies:
+	- "[[modular-architecture-standard]]"
+	- "[[zero-hardcoded-variables]]"
+	- "[[asci-tree-codeblock-standard]]"
+	- "[[cross-os-zero-localhost]]"
+---
+
+# Multiple TreePane — Compact Two-Row Subheader & Vanilla Search Architecture (`v01-02_compact-two-row-header-and-search`)
+
+> **Version**: `v01-02` (Subheader Compaction, A-Z Repo Show/Hide Bar, & Vanilla VS Code Find Mechanics)  
+> **Baseline References**:  
+> - [`brief/v01-00_main-idea.md`](file:///e:/proj/vscode-exstension_multiple-treepane/brief/v01-00_main-idea.md)  
+> - [`brief/v01-01_structure-and-tecnical.md`](file:///e:/proj/vscode-exstension_multiple-treepane/brief/v01-01_structure-and-tecnical.md)  
+> - [`e:/proj/all-lads-tool/skill/briefing-0x-0x-version.md`](file:///e:/proj/all-lads-tool/skill/briefing-0x-0x-version.md)  
+> - [`e:/proj/all-lads-tool/skill/asci-tree-codeblock-standard.md`](file:///e:/proj/all-lads-tool/skill/asci-tree-codeblock-standard.md)  
+> **Primary Objectives**:  
+> 1. Main Header A-Z Repo Checkbox Filter: Dynamic discovery of all workspace Git repositories and folders, rendered alphabetically as toggleable `[x] repo-name` pills to show or hide panels with one click.  
+> 2. Subheader Compaction: Reduce pane headers to strictly 2 clean rows (Row 1: Identity & Reorder Controls, Row 2: Vanilla VS Code Search Box).  
+> 3. Vanilla VS Code Search Box Mechanics: Search input with integrated inline toggle buttons for Match Case (`Aa`), Match Whole Word (`ab`), and Regular Expression (`.*`).  
+> 4. Error state feedback: Invalid regex input highlights the search box with an error border (`var(--vscode-inputValidation-errorBorder)`).  
+
+---
+
+## DAFTAR ISI (TABLE OF CONTENTS)
+
+1. [Architectural Directives & Invariants](#1-architectural-directives--invariants)
+2. [Directory Topology & Boundaries](#2-directory-topology--boundaries)
+3. [Data Models & Search State Engine](#3-data-models--search-state-engine)
+4. [UI/UX Monospace Text Wireframes](#4-uiux-monospace-text-wireframes)
+   - [4.1 Global Main Header with A-Z Show/Hide Bar](#41-global-main-header-with-a-z-showhide-bar)
+   - [4.2 Two-Row Subheader per Split Pane](#42-two-row-subheader-per-split-pane)
+5. [Subsystem Deep-Dives](#5-subsystem-deep-dives)
+   - [5.1 A-Z Discovered Repositories Bar Subsystem](#51-a-z-discovered-repositories-bar-subsystem)
+   - [5.2 Two-Row Pane Header Layout Subsystem](#52-two-row-pane-header-layout-subsystem)
+   - [5.3 Vanilla VS Code Search Widget Engine (`Aa`, `ab`, `.*`)](#53-vanilla-vs-code-search-widget-engine-aa-ab-)
+6. [Unified Build Pipeline & Verification](#6-unified-build-pipeline--verification)
+
+---
+
+## 1. Architectural Directives & Invariants
+
+- **RULE #1: Strictly Two Rows per Pane Header**:
+  Each tree pane subheader MUST strictly occupy exactly 2 vertical rows. Additional utility rows (e.g., redundant standalone dropdown rows) are eliminated in favor of consolidated inline controls.
+- **RULE #2: Vanilla VS Code Find Widget Visual & Behavioral Parity**:
+  The filter/search input box in Row 2 MUST replicate the look, feel, and logic of the native VS Code Find Widget (as evidenced in reference specification `media_1793541125772_8d928179.png`):
+  - Inline right-aligned toggles: `Aa` (Case), `ab` (Whole Word), `.*` (Regex).
+  - Active button states use `var(--vscode-inputOption-activeBackground)`, `var(--vscode-inputOption-activeForeground)`, and `var(--vscode-inputOption-activeBorder)`.
+  - Inactive button states use `var(--vscode-input-foreground)` with transparent background.
+- **RULE #3: Alphabetical A-Z Checkbox Visibility Registry**:
+  Discovered workspace repositories and folders MUST be sorted alphabetically in the top main header. Checking a box reveals the pane (or re-activates it); unchecking hides it from the split view without deleting user configuration.
+- **RULE #4: Zero-Localhost Compliance (Rule #007)**:
+  All state management, search querying, and directory fetching MUST run in-process via Extension Host IPC (`postMessage`).
+- **RULE #5: Strict Monospace & ASCII Standard (Rule #006)**:
+  All diagrams, wireframes, and directory trees in this specification strictly follow plain text monospace conventions without unvetted glyphs.
+
+---
+
+## 2. Directory Topology & Boundaries
+
+```text
+vscode-exstension_multiple-treepane     # Root extension workspace
+	brief                               # Architectural design records
+		v01-00_main-idea.md             # Baseline concept and UX vision
+		v01-01_structure-and-tecnical.md# Technical foundation & resizer engine
+		v01-02_compact-two-row-header-and-search.md # Two-row header & vanilla search
+	media                               # Webview visual resources
+		icons                           # Extension SVGs
+			treepane.svg                # Activity bar icon
+		main.css                        # Two-row header & vanilla find styling
+		main.js                         # Webview DOM manager & search algorithm
+	src                                 # Extension Host TypeScript source
+		extension.ts                    # Extension activator & commands
+		FileSystemService.ts            # Fast workspace FS scanner
+		TreePanelManager.ts             # WebviewPanel controller (Editor Tab)
+		TreeSidebarProvider.ts          # WebviewViewProvider (Sidebar)
+		types.ts                        # Shared TypeScript interfaces
+		WebviewUtils.ts                 # Webview HTML template & IPC router
+	.gitignore                          # Git exclude rules (node_modules, *.vsix)
+	GUIDE.md                            # Comprehensive build & publishing guide
+	package.json                        # VS Code extension manifest
+	README.md                           # Public documentation
+	tsconfig.json                       # TypeScript compiler options
+```
+
+---
+
+## 3. Data Models & Search State Engine
+
+### 3.1 Updated `PaneConfig` Interface (`src/types.ts`)
+
+```typescript
+export interface SearchOptions {
+  matchCase: boolean;
+  matchWholeWord: boolean;
+  useRegex: boolean;
+}
+
+export interface PaneConfig {
+  id: string;
+  name: string;
+  rootPath: string;
+  filterText: string;
+  searchOptions: SearchOptions;
+  isCollapsed: boolean;
+  isHidden?: boolean;
+  size?: number;
+}
+```
+
+### 3.2 State Flow Architecture
+
+```text
++------------------------------------------------------------------------+
+|                           EXTENSION HOST                               |
+|  - FileSystemService.discoverWorkspaceRepos()                          |
+|  - Workspace State Persistence                                         |
++------------------------------------------------------------------------+
+                                |  postMessage('init', { availableRepos, panes })
+                                v
++------------------------------------------------------------------------+
+|                            WEBVIEW UI                                  |
+|  +------------------------------------------------------------------+  |
+|  | MAIN HEADER: [x] all-lads-tool   [x] pakcli-plugin   [ ] docs    |  |
+|  +------------------------------------------------------------------+  |
+|                                |                                       |
+|  +-----------------------------+------------------------------------+  |
+|  | SPLIT CONTAINER (Horizontal or Vertical)                         |  |
+|  |  +--------------------------+  +-------------------------------+ |  |
+|  |  | PANE #1                  |  | PANE #2                       | |  |
+|  |  | Row 1: ::: #1 name [1st] ✕|  | Row 1: ::: #2 name [1st] ✕    | |  |
+|  |  | Row 2: [Search Aa ab .*] |  | Row 2: [Search Aa ab .*]      | |  |
+|  |  | Tree Nodes...            |  | Tree Nodes...                 | |  |
+|  |  +--------------------------+  +-------------------------------+ |  |
+|  +------------------------------------------------------------------+  |
++------------------------------------------------------------------------+
+```
+
+---
+
+## 4. UI/UX Monospace Text Wireframes
+
+### 4.1 Global Main Header (Strictly 1 Row with Repos Dropdown)
+
+```text
++------------------------------------------------------------------------------------+
+| MULTI-TREE EXPLORER   2 trees   [ 📁 Repos (2/3) ▾ ]  [Split Mode] [+ Add] [↻] [⚙]  |
++------------------------------------------------------------------------------------+
+                                         │
+                                         ▼ (Floating Dropdown Popover)
+                              ┌──────────────────────────────────┐
+                              │ REPOSITORIES (A-Z)               │
+                              │ ──────────────────────────────── │
+                              │ [x] all-lads-tool                │
+                              │ [x] pakcli-plugin                │
+                              │ [ ] all-stupid-cases             │
+                              │ ──────────────────────────────── │
+                              │ [Show All]          [Hide All]   │
+                              └──────────────────────────────────┘
+```
+
+### 4.2 Two-Row Default with Expandable 3rd Row per Split Pane
+
+```text
+Default State (Compact 2 Rows):
++----------------------------------------------------+
+| ::: #1: all-lads-tool             [1st] [<] [>]  ✕ |  <- Row 1: Identity & Reorder
+| [>] [ Filter files...              | Aa | ab | .* ]|  <- Row 2: Vanilla VS Code Find
++----------------------------------------------------+
+| v script/                                          |
+|   > file/                                          |
+
+Expanded State (When [>] is clicked -> reveals Row 3):
++----------------------------------------------------+
+| ::: #1: all-lads-tool             [1st] [<] [>]  ✕ |  <- Row 1: Identity & Reorder
+| [v] [ Filter files...              | Aa | ab | .* ]|  <- Row 2: Vanilla VS Code Find
+|     [ 📁 Switch Root Dropdown ▾ ]  [📁 Browse] [↻] |  <- Row 3: Advanced Root Controls
++----------------------------------------------------+
+| v script/                                          |
+|   > file/                                          |
+```
+
+---
+
+## 5. Subsystem Deep-Dives
+
+### 5.1 A-Z Discovered Repositories Bar Subsystem
+- When the webview initializes, all discovered workspace repositories and folders are sorted alphabetically by folder name (`repos.sort((a, b) => a.name.localeCompare(b.name))`).
+- Each repository renders as a compact checkbox chip in the main header:
+  ```html
+  <label class="repo-chip">
+    <input type="checkbox" data-path="/path/to/repo" checked />
+    <span class="repo-name">repo-name</span>
+  </label>
+  ```
+- Unchecking a chip sets `pane.isHidden = true` and updates the layout immediately.
+- Checking an inactive chip unhides the existing pane or spawns a new pane mapped to that repository root if one does not already exist.
+
+### 5.2 Two-Row Pane Header Layout Subsystem
+- **Row 1**:
+  - `drag-handle` (`:::`): Grab handle for HTML5 drag-and-drop reordering.
+  - `pane-number`: `#1`, `#2`, etc.
+  - `pane-title`: Clickable title or compact dropdown to inspect/switch folder path.
+  - `pane-actions`: Inline buttons `[⏮ 1st]`, `[◀]`, `[▶]`, and `[✕]`.
+- **Row 2**:
+  - VS Code Find input container holding the text box and the 3 action toggle badges (`Aa`, `ab`, `.*`).
+
+### 5.3 Vanilla VS Code Search Widget Engine (`Aa`, `ab`, `.*`)
+- **Match Case (`Aa`)**:
+  - Inactive: Case-insensitive search (`filename.toLowerCase().includes(query.toLowerCase())`).
+  - Active: Strict case-sensitive match (`filename.includes(query)`).
+- **Match Whole Word (`ab`)**:
+  - Escapes special characters, constructs regex boundary `\b${query}\b`.
+  - Filename matches only if the target is a discrete word boundary.
+- **Regular Expression (`.*`)**:
+  - Constructs `new RegExp(pattern, flags)`.
+  - Flags set to `g` (or `gi` when `Aa` is off).
+  - If syntax is invalid, adds `.input-error` class to the input container (displaying VS Code error border color) and ignores corrupt regex until corrected.
+
+---
+
+## 6. Unified Build Pipeline & Verification
+
+1. **Compilation**: Run `npm run compile` to build TypeScript code.
+2. **Packaging**: Run `npm run package` to generate `.vsix`.
+3. **Behavioral Acceptance Criteria**:
+   - Pane headers occupy strictly 2 rows in both sidebar mode and editor tab mode.
+   - Header shows A-Z checkboxes for all detected repos. Checking/unchecking dynamically adds/removes or shows/hides panes.
+   - Search input displays `Aa`, `ab`, `.*` toggle buttons styled identically to native VS Code.
+   - Search filter accurately supports case-sensitive, whole-word, and regular expression queries.

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { TreeSidebarProvider } from './TreeSidebarProvider';
 import { TreePanelManager } from './TreePanelManager';
+import { FileSystemService } from './FileSystemService';
 
 export function activate(context: vscode.ExtensionContext) {
   // 1. Register Sidebar WebviewViewProvider (Sidepanel view)
@@ -30,6 +31,29 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('multipleTreePane.addPane', () => {
       sidebarProvider.addPane();
     })
+  );
+
+  // 5. Register Copy Selected Content Command (Accessible from native worktree/explorer and command palette)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'multipleTreePane.copySelectedContent',
+      async (primaryUri?: vscode.Uri, selectedUris?: vscode.Uri[]) => {
+        const uris = selectedUris && selectedUris.length > 0
+          ? selectedUris
+          : (primaryUri ? [primaryUri] : []);
+        if (uris.length === 0) {
+          const activeEditor = vscode.window.activeTextEditor;
+          if (activeEditor) {
+            uris.push(activeEditor.document.uri);
+          }
+        }
+        if (uris.length > 0) {
+          await FileSystemService.copySelectedContent(uris.map((u) => u.fsPath));
+        } else {
+          vscode.window.showWarningMessage('No file selected to copy content.');
+        }
+      }
+    )
   );
 }
 

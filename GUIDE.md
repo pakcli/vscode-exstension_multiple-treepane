@@ -20,7 +20,10 @@ tags: [vscode, extension, antigravity, multiple-treepane, guide, manual]
    - [3.3 Focus Mode (100% Maximize)](#33-focus-mode-100-maximize)
    - [3.4 Per-Pane Subheader & Find Widget (Aa, ab, .*)](#34-per-pane-subheader--find-widget-aa-ab-)
    - [3.5 Drag-and-Drop Sorting (:::) & Gutter Resizers](#35-drag-and-drop-sorting---gutter-resizers)
-4. [Development & Packaging Workflow](#4-development--packaging-workflow)
+   - [3.6 Right-Click Cut, Copy & Paste Engine (Ctrl+X, Ctrl+C, Ctrl+V)](#36-right-click-cut-copy--paste-engine-ctrlx-ctrlc-ctrlv)
+   - [3.7 Copy Selected Content (Multi-Panel & Native Explorer)](#37-copy-selected-content-multi-panel--native-explorer)
+   - [3.8 Interactive Git Badge & Source Control Focus](#38-interactive-git-badge--source-control-focus)
+4. [Development & Packaging Workflow (out/dist vs out/vsix)](#4-development--packaging-workflow-outdist-vs-outvsix)
 5. [Troubleshooting & Root Cause Matrix](#5-troubleshooting--root-cause-matrix)
 
 ---
@@ -58,13 +61,14 @@ Multiple TreePane provides concurrent multi-directory visibility through two hos
 
 ## 2. Commands & Keybindings
 
-The extension exposes 3 primary commands contributed in `package.json`:
+The extension exposes 4 primary commands contributed in `package.json`:
 
 | Command Identifier | Title in Command Palette | Default Context Menu / View Action | Action |
 | :--- | :--- | :--- | :--- |
 | `multipleTreePane.openEditorTab` | `Multiple TreePane: Open in Full-Width Editor Tab` | Title navigation button (`layout-sidebar-right`) | Spawns or focuses the multi-tree cockpit in a full-width Editor Tab. |
 | `multipleTreePane.refresh` | `Multiple TreePane: Refresh All Trees` | Title navigation button (`refresh`) | Triggers recursive workspace scanning and repopulates all panes. |
 | `multipleTreePane.addPane` | `Multiple TreePane: Add Directory Tree Pane` | Title navigation button (`add`) | Appends an additional independent directory pane to the view. |
+| `multipleTreePane.copySelectedContent` | `Multiple TreePane: Copy Selected File Content` | Native Explorer context (`explorer/context`) & `Alt+C` in panel | Reads full raw UTF-8 content of selected file(s) directly to system clipboard without opening them. |
 
 ---
 
@@ -112,9 +116,59 @@ Each tree pane features a compact 2-row subheader by default:
 * **HTML5 Drag Handle (`:::`)**: Click and drag any pane header to reorder panes visually.
 * **Gutter Resizers (`.pane-resizer`)**: 6px interactive gutters between panes. In horizontal mode, dragging left/right adjusts `flex-basis` and `width`. In vertical mode, dragging up/down adjusts height.
 
+### 3.6 Right-Click Cut, Copy & Paste Engine (`Ctrl+X`, `Ctrl+C`, `Ctrl+V`)
+
+* **Cut (`Ctrl+X` / Context Menu)**:
+  * Targets the selected file or folder node.
+  * Visually dims the node with class `.tree-node.is-cut` (opacity 0.45, dashed focus outline).
+  * Stores clipboard state `{ operation: 'cut', paths: [...], sourcePaneId }`.
+* **Copy (`Ctrl+C` / Context Menu)**:
+  * Copies the selected path into the virtual clipboard without modifying node appearance.
+* **Paste (`Ctrl+V` / Context Menu)**:
+  * Available when right-clicking a directory, an item within a directory (pastes to parent), or the pane root background.
+  * Shows dynamic counter badge (e.g. `Paste (2 items)`).
+  * Executes non-destructive copy (`copyItems`) or atomic move (`moveItems`) via VS Code workspace file system IPC.
+* **Cancel Cut (`Escape`)**:
+  * Clears cut state and restores full node opacity immediately.
+
+### 3.7 Copy Selected Content (Multi-Panel & Native Explorer)
+
+* **Multi-Panel Webview (`Alt+C` / Right-Click Context Menu)**:
+  * Single file: Copies raw text contents directly to system clipboard.
+  * Multi-file: Copies formatted bundle with markdown/comment separators:
+    ```
+    // === File: filename.ts (/full/path/to/filename.ts) ===
+    ...file content...
+    ```
+* **Native Explorer Menu (`explorer/context`)**:
+  * Contributed under command `multipleTreePane.copySelectedContent` (group `7_modification@1`).
+  * Right-clicking any file in VS Code's native file explorer allows instant content copying without opening editor tabs.
+
+### 3.8 Interactive Git Badge & Source Control Focus
+
+* Each tree pane subheader dynamically renders a `[GIT]` badge when inside a detected Git repository.
+* Clicking `[GIT]` executes `workbench.view.scm` and directs the native VS Code Git extension to select and focus that repository, providing seamless access to staged changes, commits, and branches.
+
 ---
 
-## 4. Development & Packaging Workflow
+## 4. Development & Packaging Workflow (out/dist vs out/vsix)
+
+### Output Directory Architecture
+The build system strictly segregates compiled code from distribution packages inside `out/`:
+```text
+out/
+├── dist/                                     # TypeScript compiler output (tsc)
+│   ├── extension.js & extension.js.map
+│   ├── FileSystemService.js & .map
+│   ├── TreePanelManager.js & .map
+│   ├── TreeSidebarProvider.js & .map
+│   ├── WebviewUtils.js & .map
+│   └── types.js & .map
+└── vsix/                                     # Packaged release archives
+    ├── multiple-treepane-v01-01-02.vsix
+    ├── multiple-treepane-v01.01.02.vsix
+    └── ... (historical archives)
+```
 
 ### Prerequisites
 * Node.js v18.0+
@@ -126,27 +180,41 @@ Each tree pane features a compact 2-row subheader by default:
 # 1. Install devDependencies
 npm install
 
-# 2. Compile TypeScript
+# 2. Compile TypeScript into out/dist/
 npm run compile
 
 # 3. Watch mode during development
 npm run watch
 ```
 
-### Packaging Production VSIX
+### Packaging Production VSIX (Octates Naming)
 ```bash
-# Package extension without external dependencies
+# Package extension without external dependencies (generates dash and dot octates format in out/vsix/)
 npm run package
 ```
-*Output artifact:* `./out/multiple-treepane-1.1.1.vsix`
+*Output artifacts:*
+- `./out/vsix/multiple-treepane-v01-01-02.vsix`
+- `./out/vsix/multiple-treepane-v01.01.02.vsix`
+
+### Automated Lifecycle Version Bumps
+```bash
+# Patch bump: 1.1.2 -> 1.1.3 (v01-01-03)
+npm run bump:patch
+
+# Minor bump: 1.1.2 -> 1.2.0 (v01-02-00)
+npm run bump:minor
+
+# Major bump: 1.1.2 -> 2.0.0 (v02-00-00)
+npm run bump:major
+```
 
 ### Installation
 ```bash
 # In VS Code:
-code --install-extension ./out/multiple-treepane-1.1.1.vsix
+code --install-extension ./out/vsix/multiple-treepane-v01-01-02.vsix
 
 # In Google Antigravity IDE:
-antigravity --install-extension ./out/multiple-treepane-1.1.1.vsix
+antigravity --install-extension ./out/vsix/multiple-treepane-v01-01-02.vsix
 ```
 
 ---
@@ -155,7 +223,10 @@ antigravity --install-extension ./out/multiple-treepane-1.1.1.vsix
 
 | Symptom / Failure Mode | Root Cause | Prevention & Resolution |
 | :--- | :--- | :--- |
-| **Horizontal panes collapse vertically or scroll awkwardly in editor tab** | CSS flex container children defaulted to `align-items: flex-start` or lacked explicit height stretching. | Enforced `align-items: stretch !important`, `height: 100% !important`, and `box-sizing: border-box` on `.panes-container.layout-horizontal` and `.tree-pane` in `media/main.css`. |
+| **Horizontal panes collapse vertically or shrink to file count in canvas** | CSS flex container children defaulted to `align-items: flex-start` or inherited leftover vertical inline height styles. | Enforced `align-items: stretch !important`, `height: 100% !important`, and `box-sizing: border-box` on `.panes-container.layout-horizontal` and `.tree-pane` in `media/main.css`. In `media/main.js`, layout switcher strips stale inline heights. |
+| **Cut nodes stay dimmed if paste is aborted** | Missing cancellation hook for pending cut operations in UI. | Added `Escape` key event listener and right-click backdrop dismiss that resets `fileClipboard` state and invokes `clearCutVisuals()`. |
+| **VSIX packages recursively include existing .vsix files** | Root `out/` folder contained both `.js` and previous `.vsix` packages, which vsce bundled. | Split `out/` into `out/dist/` and `out/vsix/`. Added `out/vsix/**` to `.vscodeignore` and `.gitignore`. |
+| **Git badge click opens wrong repository in multi-root workspace** | Standard `workbench.view.scm` command only toggles sidebar without repository targeting. | `FileSystemService.ts` interfaces with `vscode.extensions.getExtension('vscode.git')` API to look up and focus the exact repository URI. |
 | **Tree content overflows outside webview boundary** | Missing `min-height: 0` or flex shrink constraint on scroll container. | Configured `.tree-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; }` and `.treepane-viewport { height: calc(100vh - var(--header-height)); }`. |
 | **Invalid Regex freezes search filtering** | User typed incomplete regex pattern (e.g. `[` or `(`). | Wrapped `new RegExp(query)` inside `try / catch` in `media/main.js`. Invalid patterns add `.has-error` class with red border without interrupting DOM. |
 | **Slow expansion in large workspace directories** | Eagerly scanning deep directory trees synchronously blocks extension host IPC. | `FileSystemService.ts` implements non-blocking shallow scans; subdirectories are fetched on-demand when the user clicks the expand chevron. |

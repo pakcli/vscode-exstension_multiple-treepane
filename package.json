@@ -2,7 +2,7 @@
   "name": "multiple-treepane",
   "displayName": "Multiple TreePane Explorer",
   "description": "Concurrent multi-repository file tree explorer with adaptive vertical/horizontal splitting for VS Code & Antigravity IDE",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "publisher": "all-lads-tool",
   "license": "MIT",
   "repository": {
@@ -19,7 +19,7 @@
   "activationEvents": [
     "onView:multipleTreePane.sidebarView"
   ],
-  "main": "./out/extension.js",
+  "main": "./out/dist/extension.js",
   "contributes": {
     "commands": [
       {
@@ -36,6 +36,11 @@
         "command": "multipleTreePane.addPane",
         "title": "Multiple TreePane: Add Directory Tree Pane",
         "icon": "$(add)"
+      },
+      {
+        "command": "multipleTreePane.copySelectedContent",
+        "title": "Multiple TreePane: Copy Selected File Content",
+        "category": "Multiple TreePane"
       }
     ],
     "viewsContainers": {
@@ -73,6 +78,13 @@
           "when": "view == multipleTreePane.sidebarView",
           "group": "navigation@3"
         }
+      ],
+      "explorer/context": [
+        {
+          "command": "multipleTreePane.copySelectedContent",
+          "group": "7_modification@1",
+          "when": "resourceScheme == file"
+        }
       ]
     }
   },
@@ -80,7 +92,10 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "prepublish": "npm run compile",
-    "package": "npx -y @vscode/vsce package --no-dependencies -o ./out/multiple-treepane-1.1.1.vsix"
+    "package": "node ./scripts/package-vsix.js",
+    "bump:patch": "node ./scripts/bump-version.js patch",
+    "bump:minor": "node ./scripts/bump-version.js minor",
+    "bump:major": "node ./scripts/bump-version.js major"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

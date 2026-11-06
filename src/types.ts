@@ -50,6 +50,8 @@ export type InboundMessage =
   | { command: 'renameItem'; oldPath: string; newName?: string }
   | { command: 'moveToRepo'; sourcePaths: string[]; sourcePaneId?: string }
   | { command: 'copyToClipboard'; text: string }
+  | { command: 'copySelectedContent'; paths: string[] }
+  | { command: 'openSourceControl'; repoPath: string }
   | { command: 'revealInOS'; filePath: string }
   | { command: 'loadSubfolder'; paneId: string; folderPath: string };
 

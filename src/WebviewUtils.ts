@@ -278,6 +278,16 @@ export class WebviewUtils {
         break;
       }
 
+      case 'copySelectedContent': {
+        await FileSystemService.copySelectedContent(message.paths);
+        break;
+      }
+
+      case 'openSourceControl': {
+        await FileSystemService.openSourceControlForRepo(message.repoPath);
+        break;
+      }
+
       case 'revealInOS': {
         const uri = vscode.Uri.file(message.filePath);
         await vscode.commands.executeCommand('revealFileInOS', uri);

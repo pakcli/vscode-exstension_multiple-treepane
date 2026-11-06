@@ -3,4 +3,5 @@ src/**
 tsconfig.json
 trash-bin/**
 brief/**
+out/vsix/**
 **/*.map

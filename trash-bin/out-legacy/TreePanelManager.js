@@ -1,0 +1,71 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.TreePanelManager = void 0;
+const vscode = require("vscode");
+const WebviewUtils_1 = require("./WebviewUtils");
+class TreePanelManager {
+    _context;
+    static currentPanel;
+    _panel;
+    _panes = [];
+    _layout = 'horizontal';
+    static createOrShow(context) {
+        const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
+        if (TreePanelManager.currentPanel) {
+            TreePanelManager.currentPanel._panel.reveal(column);
+            return;
+        }
+        const panel = vscode.window.createWebviewPanel('multipleTreePane.editorTab', '🌲 Multi-Tree Explorer', column || vscode.ViewColumn.One, {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            localResourceRoots: [context.extensionUri]
+        });
+        TreePanelManager.currentPanel = new TreePanelManager(panel, context);
+    }
+    constructor(panel, _context) {
+        this._context = _context;
+        this._panel = panel;
+        this._loadState();
+        this._panel.webview.html = WebviewUtils_1.WebviewUtils.getHtmlContent(this._panel.webview, this._context.extensionUri, 'editor');
+        this._panel.webview.onDidReceiveMessage((message) => {
+            WebviewUtils_1.WebviewUtils.handleInboundMessage(message, this._panel.webview, this._context, this._panes, this._layout, (newPanes, newLayout) => {
+                this._panes = newPanes;
+                this._layout = newLayout;
+                this._saveState();
+            });
+        });
+        this._panel.onDidDispose(() => {
+            TreePanelManager.currentPanel = undefined;
+        });
+    }
+    _loadState() {
+        const saved = this._context.workspaceState.get('multiTreeState');
+        if (saved && saved.panes && saved.panes.length > 0) {
+            this._panes = saved.panes;
+            this._layout = saved.layout || 'horizontal';
+        }
+        else {
+            // Initialize with up to 3-5 distinct subfolders from workspace for instant multi-repo view!
+            const workspaceFolders = vscode.workspace.workspaceFolders || [];
+            const defaultRoot = workspaceFolders[0]?.uri.fsPath.replace(/\\/g, '/') || '';
+            this._panes = [
+                {
+                    id: 'pane_1',
+                    name: defaultRoot ? defaultRoot.split('/').pop() || 'Tree 1' : 'Tree 1',
+                    rootPath: defaultRoot,
+                    filterText: '',
+                    isCollapsed: false
+                }
+            ];
+            this._layout = 'horizontal';
+        }
+    }
+    _saveState() {
+        this._context.workspaceState.update('multiTreeState', {
+            panes: this._panes,
+            layout: this._layout
+        });
+    }
+}
+exports.TreePanelManager = TreePanelManager;
+//# sourceMappingURL=TreePanelManager.js.map

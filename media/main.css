@@ -649,11 +649,29 @@ body.is-resizing-v {
 
 .repo-badge {
   font-size: 9px;
-  padding: 1px 4px;
+  padding: 1px 5px;
   border-radius: 3px;
   background-color: rgba(0, 122, 204, 0.25);
   color: #38aefc;
   font-weight: bold;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(56, 174, 252, 0.3);
+}
+
+.repo-badge:hover {
+  background-color: var(--vscode-activityBarBadge-background, #007acc);
+  color: #ffffff;
+  border-color: transparent;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 4px rgba(0, 122, 204, 0.4);
+}
+
+.repo-badge:active {
+  transform: translateY(0);
 }
 
 .pane-btn {
@@ -1087,9 +1105,22 @@ body.is-resizing-v {
   transition: background-color 0.05s ease;
 }
 
-.context-menu-item:hover {
+.context-menu-item:hover:not(.disabled) {
   background-color: var(--vscode-menu-selectionBackground, #04395e);
   color: var(--vscode-menu-selectionForeground, #ffffff);
+}
+
+.context-menu-item.disabled {
+  opacity: 0.35;
+  pointer-events: none;
+  cursor: default;
+}
+
+.tree-node.is-cut {
+  opacity: 0.45 !important;
+  filter: grayscale(0.6);
+  outline: 1.5px dashed var(--accent-color, #007acc) !important;
+  outline-offset: -1px;
 }
 
 .context-menu-item .item-label {

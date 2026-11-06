@@ -599,7 +599,7 @@
               <span class="drag-handle" draggable="true" title="Drag to reorder pane">:::</span>
               <span class="pane-index">#${index + 1}</span>
               <span class="pane-title" title="${pane.rootPath}">${escapeHtml(pane.name)}</span>
-              ${pane.rootPath.includes('.git') || state.availableRepos.find((r) => r.path === pane.rootPath && r.isGit) ? '<span class="repo-badge">GIT</span>' : ''}
+              ${pane.rootPath.includes('.git') || state.availableRepos.find((r) => r.path === pane.rootPath && r.isGit) ? `<span class="repo-badge btn-git-badge" data-repo-path="${escapeHtml(pane.rootPath)}" title="Open in Source Control (${escapeHtml(pane.name)})">GIT</span>` : ''}
               ${focusBadgeHtml}
             </div>
             <div class="row-right">
@@ -738,6 +738,18 @@
       // Action & Row 3 Controls
       // -----------------------------------------------------------------------
       const subheader = paneEl.querySelector('.pane-subheader');
+      const gitBadge = paneEl.querySelector('.btn-git-badge');
+      if (gitBadge) {
+        gitBadge.addEventListener('click', (e) => {
+          e.stopPropagation();
+          state.activePaneId = pane.id;
+          vscode.postMessage({
+            command: 'openSourceControl',
+            repoPath: pane.rootPath
+          });
+        });
+      }
+
       const btnExpandRow3 = paneEl.querySelector('.btn-expand-row3');
       btnExpandRow3.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1495,9 +1507,80 @@
     closeContextMenu();
   });
 
+  let fileClipboard = {
+    operation: null, // 'copy' | 'cut'
+    paths: [],
+    sourcePaneId: null
+  };
+
+  function executeCopy(paths, paneId) {
+    if (!paths || paths.length === 0) return;
+    document.querySelectorAll('.tree-node.is-cut').forEach((el) => el.classList.remove('is-cut'));
+    fileClipboard = {
+      operation: 'copy',
+      paths: [...paths],
+      sourcePaneId: paneId
+    };
+    copyTextToClipboard(paths.join('\n'));
+  }
+
+  function executeCut(paths, paneId) {
+    if (!paths || paths.length === 0) return;
+    document.querySelectorAll('.tree-node.is-cut').forEach((el) => el.classList.remove('is-cut'));
+    fileClipboard = {
+      operation: 'cut',
+      paths: [...paths],
+      sourcePaneId: paneId
+    };
+    paths.forEach((p) => {
+      const el = document.querySelector(`.tree-node[data-path="${CSS.escape(p)}"]`);
+      if (el) el.classList.add('is-cut');
+    });
+    copyTextToClipboard(paths.join('\n'));
+  }
+
+  function executePaste(targetDirPath) {
+    if (!fileClipboard || !fileClipboard.operation || fileClipboard.paths.length === 0) {
+      return;
+    }
+    const { operation, paths } = fileClipboard;
+    if (operation === 'copy') {
+      vscode.postMessage({
+        command: 'copyItems',
+        sourcePaths: paths,
+        targetDirPath
+      });
+    } else if (operation === 'cut') {
+      vscode.postMessage({
+        command: 'moveItems',
+        sourcePaths: paths,
+        targetDirPath
+      });
+      document.querySelectorAll('.tree-node.is-cut').forEach((el) => el.classList.remove('is-cut'));
+      fileClipboard = { operation: null, paths: [], sourcePaneId: null };
+    }
+  }
+
+  function executeCopyContent(paths) {
+    if (!paths || paths.length === 0) return;
+    vscode.postMessage({
+      command: 'copySelectedContent',
+      paths
+    });
+  }
+
   window.addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+      return;
+    }
+
     if (e.key === 'Escape') {
       closeContextMenu();
+      if (fileClipboard.operation === 'cut') {
+        document.querySelectorAll('.tree-node.is-cut').forEach((el) => el.classList.remove('is-cut'));
+        fileClipboard = { operation: null, paths: [], sourcePaneId: null };
+      }
     } else if (e.key === 'F2') {
       const activeEl = document.querySelector('.tree-node.active') || document.querySelector('.tree-node.selected');
       if (activeEl) {
@@ -1506,6 +1589,47 @@
         const paneId = activeEl.dataset.paneId;
         const name = p.split('/').pop() || p;
         startInlineRename(activeEl, { path: p, name, isDirectory: isDir }, paneId);
+      }
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && !e.altKey && !e.shiftKey) {
+      const activePaths = selectedPaths.size > 0 ? Array.from(selectedPaths) : [];
+      if (activePaths.length > 0) {
+        e.preventDefault();
+        const firstEl = document.querySelector(`.tree-node[data-path="${CSS.escape(activePaths[0])}"]`);
+        const paneId = firstEl ? firstEl.dataset.paneId : state.activePaneId;
+        executeCopy(activePaths, paneId);
+      }
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+      const activePaths = selectedPaths.size > 0 ? Array.from(selectedPaths) : [];
+      if (activePaths.length > 0) {
+        e.preventDefault();
+        const firstEl = document.querySelector(`.tree-node[data-path="${CSS.escape(activePaths[0])}"]`);
+        const paneId = firstEl ? firstEl.dataset.paneId : state.activePaneId;
+        executeCut(activePaths, paneId);
+      }
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+      if (fileClipboard.paths.length > 0) {
+        e.preventDefault();
+        let targetDirPath = null;
+        const activeNode = document.querySelector('.tree-node.active') || document.querySelector('.tree-node.selected');
+        if (activeNode) {
+          const p = activeNode.dataset.path;
+          const isDir = activeNode.dataset.isDir === 'true';
+          targetDirPath = isDir ? p : p.substring(0, p.lastIndexOf('/'));
+        } else if (state.activePaneId) {
+          const pane = state.panes.find((p) => p.id === state.activePaneId);
+          if (pane) targetDirPath = pane.rootPath;
+        } else if (state.panes.length > 0) {
+          targetDirPath = state.panes[0].rootPath;
+        }
+        if (targetDirPath) {
+          executePaste(targetDirPath);
+        }
+      }
+    } else if (e.altKey && e.key.toLowerCase() === 'c') {
+      const activePaths = selectedPaths.size > 0 ? Array.from(selectedPaths) : [];
+      if (activePaths.length > 0) {
+        e.preventDefault();
+        executeCopyContent(activePaths);
       }
     }
   });
@@ -1548,6 +1672,9 @@
     const pane = state.panes.find((p) => p.id === paneId);
     const rootPath = pane ? pane.rootPath : '';
     const fullPath = node.path;
+    const targetDirPath = node.isDirectory ? fullPath : fullPath.substring(0, fullPath.lastIndexOf('/'));
+    const canPaste = Boolean(fileClipboard.operation && fileClipboard.paths.length > 0);
+    const pasteCount = canPaste ? ` (${fileClipboard.paths.length})` : '';
 
     const isMulti = selectedPaths.has(fullPath) && selectedPaths.size > 1;
     const activePaths = isMulti ? Array.from(selectedPaths) : [fullPath];
@@ -1567,6 +1694,24 @@
     }, true);
 
     menu.innerHTML = `
+      <div class="context-menu-item" data-action="cut">
+        <span class="item-label">Cut${countBadge}</span>
+        <span class="item-shortcut">Ctrl+X</span>
+      </div>
+      <div class="context-menu-item" data-action="copy">
+        <span class="item-label">Copy${countBadge}</span>
+        <span class="item-shortcut">Ctrl+C</span>
+      </div>
+      <div class="context-menu-item ${!canPaste ? 'disabled' : ''}" data-action="paste">
+        <span class="item-label">Paste${pasteCount}</span>
+        <span class="item-shortcut">Ctrl+V</span>
+      </div>
+      <div class="context-menu-divider"></div>
+      <div class="context-menu-item" data-action="copyContent">
+        <span class="item-label">Copy Selected Content${countBadge}</span>
+        <span class="item-shortcut">Alt+C</span>
+      </div>
+      <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="copyPath">
         <span class="item-label">Copy Path${countBadge}</span>
         <span class="item-shortcut">Shift+Alt+C</span>
@@ -1600,6 +1745,20 @@
 
       const action = targetItem.dataset.action;
       switch (action) {
+        case 'cut':
+          executeCut(activePaths, paneId);
+          break;
+        case 'copy':
+          executeCopy(activePaths, paneId);
+          break;
+        case 'paste':
+          if (canPaste) {
+            executePaste(targetDirPath);
+          }
+          break;
+        case 'copyContent':
+          executeCopyContent(activePaths);
+          break;
         case 'copyPath':
           copyTextToClipboard(fullPaths);
           break;
@@ -1654,6 +1813,8 @@
     const fullPath = pane.rootPath;
     const relPath = pane.name;
     const advancePath = toAdvancedFilePath(fullPath);
+    const canPaste = Boolean(fileClipboard.operation && fileClipboard.paths.length > 0);
+    const pasteCount = canPaste ? ` (${fileClipboard.paths.length})` : '';
 
     const menu = document.createElement('div');
     menu.className = 'treepane-context-menu';
@@ -1665,6 +1826,11 @@
     }, true);
 
     menu.innerHTML = `
+      <div class="context-menu-item ${!canPaste ? 'disabled' : ''}" data-action="paste">
+        <span class="item-label">Paste into Root${pasteCount}</span>
+        <span class="item-shortcut">Ctrl+V</span>
+      </div>
+      <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="copyPath">
         <span class="item-label">Copy Path</span>
         <span class="item-shortcut">Shift+Alt+C</span>
@@ -1691,6 +1857,11 @@
 
       const action = targetItem.dataset.action;
       switch (action) {
+        case 'paste':
+          if (canPaste) {
+            executePaste(fullPath);
+          }
+          break;
         case 'copyPath':
           copyTextToClipboard(fullPath);
           break;
